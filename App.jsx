@@ -252,8 +252,11 @@ function ArticleCard({item,onRead,collection:col}){
     onRead(item);
   };
   return(<TiltCard>
-    <div style={{padding:"18px 18px 10px",display:"flex",alignItems:"center",gap:12,background:"linear-gradient(135deg,rgba(245,166,35,.1),rgba(255,255,255,.02)),linear-gradient(180deg,#1e2030,#161820)",minHeight:90}}>
-      <div style={{fontSize:48,flexShrink:0,filter:"drop-shadow(0 4px 12px rgba(0,0,0,.5))"}}>{item.thumb||"📝"}</div>
+    {item.thumbImg&&<div style={{height:190,overflow:"hidden",borderBottom:"1px solid rgba(255,255,255,.07)",flexShrink:0}}>
+      <img src={item.thumbImg} alt={item.title} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={e=>{e.target.parentElement.style.display="none";}}/>
+    </div>}
+    <div style={{padding:"14px 18px 10px",display:"flex",alignItems:"center",gap:12,background:"linear-gradient(135deg,rgba(245,166,35,.1),rgba(255,255,255,.02)),linear-gradient(180deg,#1e2030,#161820)",minHeight:item.thumbImg?50:90}}>
+      <div style={{fontSize:item.thumbImg?32:48,flexShrink:0,filter:"drop-shadow(0 4px 12px rgba(0,0,0,.5))"}}>{item.thumb||"📝"}</div>
       <div>
         <span style={{display:"inline-block",padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...BS.gold}}>{item.badge}</span>
         <div style={{fontSize:12,color:"rgba(255,255,255,.4)",marginTop:4}}>{item.readTime||"5 min"} read</div>
@@ -601,48 +604,32 @@ function WebsitesPage(){
 }
 
 // ── Robotic Hand Hero Component ───────────────────────
-const ROBOT_IMG = "https://i.imgur.com/8X9QZQM.png"; // fallback
 function RoboticHand(){
-  const [phase, setPhase] = useState("enter"); // enter | settle | static
-  useEffect(()=>{
-    // Phase 1: entrance animation (0-2s)
-    // Phase 2: settle (2-4s)
-    // Phase 3: static background element
-    const t1 = setTimeout(()=>setPhase("settle"), 2000);
-    const t2 = setTimeout(()=>setPhase("static"), 4000);
-    return()=>{clearTimeout(t1);clearTimeout(t2);};
-  },[]);
-
-  const styles = {
-    enter: {
-      opacity:0,
-      transform:"translateX(120px) translateY(40px) rotate(-15deg) scale(0.7)",
-      filter:"drop-shadow(0 0 60px rgba(138,43,226,.8))",
-    },
-    settle: {
-      opacity:.85,
-      transform:"translateX(0px) translateY(0px) rotate(0deg) scale(1)",
-      filter:"drop-shadow(0 0 40px rgba(138,43,226,.5))",
-    },
-    static: {
-      opacity:.7,
-      transform:"translateX(0px) translateY(0px) rotate(0deg) scale(1)",
-      filter:"drop-shadow(0 0 30px rgba(138,43,226,.35))",
-    },
-  };
-
-  return(
-    <div style={{
+  return(<>
+    <style>{`
+      @keyframes robotEnter {
+        0%   { opacity:0; transform:translateX(160px) translateY(80px) rotate(-22deg) scale(0.55); filter:drop-shadow(0 0 80px rgba(138,43,226,.9)); }
+        60%  { opacity:.9; transform:translateX(-12px) translateY(-10px) rotate(4deg) scale(1.05); filter:drop-shadow(0 0 50px rgba(138,43,226,.55)); }
+        80%  { opacity:.78; transform:translateX(6px) translateY(5px) rotate(-1.5deg) scale(0.97); }
+        100% { opacity:.75; transform:translateX(0) translateY(0) rotate(0) scale(1); filter:drop-shadow(0 0 28px rgba(138,43,226,.3)); }
+      }
+      .rh-wrap { animation: robotEnter 1.8s cubic-bezier(.34,1.56,.64,1) 0.2s both; }
+      @keyframes robotFloat {
+        0%,100% { transform:translateY(0); }
+        50% { transform:translateY(-14px); }
+      }
+      .rh-inner { animation: robotFloat 5s ease-in-out 2.2s infinite; }
+    `}</style>
+    <div className="rh-wrap" style={{
       position:"absolute",
       right:"-2%",
       bottom:"-5%",
-      width:"clamp(280px,45%,560px)",
-      height:"clamp(320px,55%,640px)",
+      width:"clamp(260px,42%,520px)",
+      height:"clamp(300px,52%,600px)",
       pointerEvents:"none",
       zIndex:1,
-      transition:"opacity 1.2s cubic-bezier(.4,0,.2,1), transform 1.2s cubic-bezier(.34,1.56,.64,1), filter 1.2s ease",
-      ...styles[phase],
     }}>
+    <div className="rh-inner" style={{width:"100%",height:"100%"}}>
       <svg viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%",objectFit:"contain"}}>
         <defs>
           <linearGradient id="rh1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -734,28 +721,31 @@ function RoboticHand(){
         <ellipse cx="200" cy="490" rx="80" ry="12" fill="#7c3aed" opacity=".25"/>
       </svg>
     </div>
-  );
+    </div>
+  </>);
 }
 
 // ── Hero title fade-in ────────────────────────────────
 function HeroTitle(){
-  const [visible, setVisible] = useState(false);
-  useEffect(()=>{ const t=setTimeout(()=>setVisible(true), 3800); return()=>clearTimeout(t); },[]);
-  return(
-    <h1 style={{
+  return(<>
+    <style>{`
+      @keyframes titleIn {
+        from { opacity:0; transform:translateY(28px); }
+        to   { opacity:1; transform:translateY(0); }
+      }
+      .hero-title { animation: titleIn 1s ease 0.5s both; }
+    `}</style>
+    <h1 className="hero-title" style={{
       fontFamily:"'Bricolage Grotesque',sans-serif",
       fontSize:"clamp(46px,7vw,106px)",
       lineHeight:.88,
       letterSpacing:"-.07em",
       margin:"0 0 14px",
-      transition:"opacity 1.2s ease, transform 1.2s ease",
-      opacity: visible ? 1 : 0,
-      transform: visible ? "translateY(0)" : "translateY(20px)",
     }}>
       <span style={{display:"block"}}>SwahiliTech</span>
-      <span style={{display:"block",background:`linear-gradient(135deg,#F5A623,#FFD17C)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Elite Academy</span>
+      <span style={{display:"block",background:"linear-gradient(135deg,#F5A623,#FFD17C)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Elite Academy</span>
     </h1>
-  );
+  </>);
 }
 
 // ── Prompt Lab Data ───────────────────────────────────
