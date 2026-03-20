@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, Component } from "react";
 import { AlertCircle } from "lucide-react";
+import { motion } from "motion/react";
 import { initFirebase, getFirebaseAuth, getFirebaseDb,
   GoogleAuthProvider, ADMIN_EMAIL, doc, setDoc, getDoc,
   serverTimestamp, normalizeEmail,
@@ -506,7 +507,12 @@ function DealsPage(){
           <div style={{padding:"18px 18px 20px",display:"flex",gap:14,alignItems:"flex-start"}}>
             <div style={{fontSize:30,flexShrink:0,marginTop:3}}>{d.icon}</div>
             <div style={{flex:1}}>
-              <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:19,margin:"0 0 4px",letterSpacing:"-.03em"}}>{d.name}</h3>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+                <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:19,margin:"0 0 4px",letterSpacing:"-.03em"}}>{d.name}</h3>
+                <div style={{borderRadius:999,padding:"4px 8px",border:"1px solid rgba(0,196,140,.3)",background:"rgba(0,196,140,.1)",color:"#00C48C",fontSize:9,fontWeight:900,display:"flex",alignItems:"center",gap:3,whiteSpace:"nowrap"}}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verified
+                </div>
+              </div>
               <div style={{fontSize:12,color:"rgba(255,255,255,.4)",marginBottom:8}}>{d.meta}</div>
               <p style={{color:"rgba(255,255,255,.68)",fontSize:14,lineHeight:1.7,margin:0}}>{d.desc}</p>
               {d.oldP&&<div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",margin:"10px 0 12px"}}><span style={{color:"rgba(255,255,255,.42)",textDecoration:"line-through",fontSize:14,fontWeight:700}}>{d.oldP}</span><span style={{color:G,fontSize:20,fontWeight:900}}>{d.newP}</span><span style={{padding:"5px 10px",borderRadius:999,fontSize:11,fontWeight:900,background:"rgba(245,166,35,.12)",color:G,border:"1px solid rgba(245,166,35,.18)"}}>{d.save}</span></div>}
@@ -562,6 +568,9 @@ function DukaPage(){
         <div style={{paddingTop:"52%",position:"relative",background:"linear-gradient(135deg,rgba(245,166,35,.15),rgba(255,255,255,.03)),linear-gradient(180deg,#252538,#171720)"}}>
           <div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",fontSize:52}}>{p.icon}</div>
           {p.badge && <div style={{position:"absolute",top:14,left:14,borderRadius:999,padding:"6px 11px",border:"1px solid rgba(255,255,255,.08)",background:"rgba(14,14,22,.75)",color:G,fontSize:11,fontWeight:800}}>{p.badge}</div>}
+          <div style={{position:"absolute",top:14,right:14,borderRadius:999,padding:"6px 11px",border:"1px solid rgba(0,196,140,.3)",background:"rgba(0,196,140,.15)",color:"#00C48C",fontSize:10,fontWeight:900,display:"flex",alignItems:"center",gap:4,backdropFilter:"blur(4px)"}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verified by STEA
+          </div>
         </div>
         <div style={{padding:18}}>
           <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,margin:"0 0 9px",letterSpacing:"-.03em"}}>{p.name}</h3>
@@ -763,6 +772,7 @@ const PROMPT_LAB_DATA = [
       "Edit kidogo matokeo kulingana na brand yako",
     ],
     tags:["Instagram","Caption","Kiswahili"],
+    image: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=600&h=400&fit=crop&q=80",
   },
   {
     id:"p2",
@@ -777,6 +787,7 @@ const PROMPT_LAB_DATA = [
       "Print au save kama PDF kwa investors",
     ],
     tags:["Business","Planning","AI"],
+    image: "https://images.unsplash.com/photo-1664575602276-acd073f104c1?w=600&h=400&fit=crop&q=80",
   },
   {
     id:"p3",
@@ -791,6 +802,7 @@ const PROMPT_LAB_DATA = [
       "Post wakati mzuri: 7pm-9pm Tanzania time",
     ],
     tags:["TikTok","Reels","Script"],
+    image: "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=600&h=400&fit=crop&q=80",
   },
   {
     id:"p4",
@@ -805,6 +817,7 @@ const PROMPT_LAB_DATA = [
       "Track clicks kwa bit.ly au link shortener",
     ],
     tags:["Affiliate","WhatsApp","Marketing"],
+    image: "https://images.unsplash.com/photo-1611262588024-d12430b98920?w=600&h=400&fit=crop&q=80",
   },
   {
     id:"p5",
@@ -819,6 +832,7 @@ const PROMPT_LAB_DATA = [
       "Save muhtasari kwenye Notion au notes yako",
     ],
     tags:["Learning","Study","Education"],
+    image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&h=400&fit=crop&q=80",
   },
   {
     id:"p6",
@@ -833,6 +847,7 @@ const PROMPT_LAB_DATA = [
       "Follow up baada ya siku 3-5 kama hakuna jibu",
     ],
     tags:["Email","Professional","Career"],
+    image: "https://images.unsplash.com/photo-1596524430615-b46475ddff6e?w=600&h=400&fit=crop&q=80",
   },
 ];
 
@@ -841,6 +856,7 @@ function PromptLabPage(){
   const [copied, setCopied] = useState(null);
   const [openGuide, setOpenGuide] = useState(null);
   const [filter, setFilter] = useState("All");
+  const [lightbox, setLightbox] = useState(null);
   const { docs: liveDocs, loading } = useCollection("prompts");
 
   const categories = ["All", "📱 Social Media", "🤖 AI Business", "📝 Content Creation", "💰 Affiliate Marketing", "🎓 Learning", "📧 Professional"];
@@ -898,6 +914,17 @@ function PromptLabPage(){
             <div key={item.id} style={{borderRadius:22,border:"1px solid rgba(255,255,255,.08)",background:"#141823",overflow:"hidden",transition:"border-color .25s,transform .25s",boxShadow:"0 8px 32px rgba(0,0,0,.2)"}}
               onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(138,43,226,.35)";e.currentTarget.style.transform="translateY(-4px)";}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,.08)";e.currentTarget.style.transform="";}}>
+
+              {/* Image */}
+              {item.image && (
+                <div onClick={() => setLightbox(item.image)} style={{width:"100%",height:160,background:`url(${item.image}) center/cover`,cursor:"pointer",position:"relative"}} title="Bofya kuona picha kubwa">
+                  <div style={{position:"absolute",inset:0,background:"linear-gradient(0deg, #141823 0%, transparent 100%)"}}/>
+                  <div style={{position:"absolute",bottom:10,right:10,background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)",padding:"4px 8px",borderRadius:8,fontSize:10,fontWeight:800,color:"#fff",display:"flex",alignItems:"center",gap:4}}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                    Panua
+                  </div>
+                </div>
+              )}
 
               {/* Card header */}
               <div style={{padding:"18px 20px 14px",background:"linear-gradient(135deg,rgba(138,43,226,.12),rgba(6,182,212,.08))",borderBottom:"1px solid rgba(255,255,255,.06)",display:"flex",alignItems:"center",gap:12}}>
@@ -988,10 +1015,40 @@ function HomePage({goPage}){
     <div style={{marginBottom:16,borderRadius:20,border:"1px dashed rgba(245,166,35,.22)",background:"rgba(245,166,35,.06)",padding:"13px 18px",textAlign:"center",color:"rgba(255,255,255,.55)",fontSize:14}}>📢 Nafasi ya Google AdSense — matangazo kwa mapato ya STEA</div>
     <div style={{position:"relative",overflow:"hidden",borderRadius:30,border:"1px solid rgba(255,255,255,.07)",padding:"clamp(30px,5vw,62px) clamp(20px,4vw,52px) clamp(36px,5vw,54px)",background:"radial-gradient(circle at 18% 22%,rgba(245,166,35,.15),transparent 22%),radial-gradient(circle at 78% 28%,rgba(91,200,255,.17),transparent 24%),linear-gradient(135deg,#0d1019,#090b12,#0f1320)",boxShadow:"0 28px 80px rgba(0,0,0,.4)"}}>
       <StarCanvas/>
+      
+      {/* 3D Robotic Hand Animation */}
+      <motion.div
+        initial={{ x: "100%", y: "50%", scale: 2, rotate: -20, opacity: 0 }}
+        animate={{ x: "30%", y: "10%", scale: 1, rotate: 0, opacity: 0.4 }}
+        transition={{ duration: 4, ease: "easeOut" }}
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: "60%",
+          zIndex: 1,
+          pointerEvents: "none",
+          backgroundImage: "url('https://images.unsplash.com/photo-1614729939124-032f0b56c9ce?w=800&h=800&fit=crop&q=80')",
+          backgroundSize: "contain",
+          backgroundPosition: "right center",
+          backgroundRepeat: "no-repeat",
+          mixBlendMode: "screen",
+          maskImage: "linear-gradient(to left, black 50%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to left, black 50%, transparent 100%)"
+        }}
+      />
+
       <div style={{position:"relative",zIndex:2,maxWidth:680}}>
-        <div style={{display:"inline-flex",alignItems:"center",gap:8,borderRadius:999,padding:"8px 16px",border:"1px solid rgba(245,166,35,.22)",background:"rgba(245,166,35,.08)",color:G,fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:".12em",marginBottom:18}}>🚀 STEA · Learn · Build · Grow · Tanzania</div>
-        <h1 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(46px,7vw,106px)",lineHeight:.88,letterSpacing:"-.07em",margin:"0 0 14px"}}><span style={{display:"block"}}>SwahiliTech</span><span style={{display:"block",background:"linear-gradient(135deg,#F5A623,#FFD17C)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Elite Academy</span></h1>
-        <div style={{fontSize:"clamp(15px,2vw,28px)",fontWeight:800,letterSpacing:"-.03em",color:"rgba(255,255,255,.86)",margin:"0 0 6px"}}>Teknolojia kwa Kiswahili 🇹🇿</div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 2 }}
+        >
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,borderRadius:999,padding:"8px 16px",border:"1px solid rgba(245,166,35,.22)",background:"rgba(245,166,35,.08)",color:G,fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:".12em",marginBottom:18}}>🚀 STEA · Learn · Build · Grow · Tanzania</div>
+          <h1 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(46px,7vw,106px)",lineHeight:.88,letterSpacing:"-.07em",margin:"0 0 14px"}}><span style={{display:"block"}}>SwahiliTech</span><span style={{display:"block",background:"linear-gradient(135deg,#F5A623,#FFD17C)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Elite Academy</span></h1>
+          <div style={{fontSize:"clamp(15px,2vw,28px)",fontWeight:800,letterSpacing:"-.03em",color:"rgba(255,255,255,.86)",margin:"0 0 6px"}}>Teknolojia kwa Kiswahili 🇹🇿</div>
+        </motion.div>
         <TypedText/>
         <p style={{maxWidth:560,lineHeight:1.9,color:"rgba(255,255,255,.65)",fontSize:15,margin:0}}>STEA inaleta tech tips, updates, deals, electronics, websites za kijanja na kozi za kisasa kwa lugha rahisi ya Kiswahili — platform ya kwanza ya tech kwa Watanzania.</p>
         <div style={{display:"flex",gap:14,flexWrap:"wrap",marginTop:28,alignItems:"center"}}>
