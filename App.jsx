@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, Component } from "react";
 import { AlertCircle } from "lucide-react";
 import { initFirebase, getFirebaseAuth, getFirebaseDb,
   GoogleAuthProvider, ADMIN_EMAIL, doc, setDoc, getDoc,
-  serverTimestamp, normalizeEmail,
+  serverTimestamp, normalizeEmail, collection, query, orderBy, onSnapshot,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   signInWithPopup, signOut, onAuthStateChanged, sendPasswordResetEmail
 } from "./firebase.js";
@@ -841,11 +841,24 @@ function PromptLabPage(){
   const [copied, setCopied] = useState(null);
   const [openGuide, setOpenGuide] = useState(null);
   const [filter, setFilter] = useState("All");
-  const { docs: liveDocs, loading } = useCollection("prompts");
+  const [liveDocs, setLiveDocs] = useState([]);
 
   const categories = ["All", "📱 Social Media", "🤖 AI Business", "📝 Content Creation", "💰 Affiliate Marketing", "🎓 Learning", "📧 Professional"];
 
-  // Use live Firestore data if available, otherwise use fallback
+  useEffect(()=>{
+    let unsub;
+    try {
+      const db = getFirebaseDb();
+      if(!db) return;
+      const q = query(collection(db,"prompts"), orderBy("createdAt","desc"));
+      unsub = onSnapshot(q,
+        snap => setLiveDocs(snap.docs.map(d=>({id:d.id,...d.data()}))),
+        () => setLiveDocs([])
+      );
+    } catch(_){ setLiveDocs([]); }
+    return ()=>{ try{ if(unsub) unsub(); }catch(_){} };
+  },[]);
+
   const allPrompts = liveDocs.length > 0 ? liveDocs : PROMPT_LAB_DATA;
   const filtered = filter === "All" ? allPrompts : allPrompts.filter(p=>p.category===filter);
 

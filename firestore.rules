@@ -2,129 +2,52 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: users
-    // Document ID: {uid}
-    // Fields:
-    //   - uid: string (required, immutable)
-    //   - email: string (required, immutable)
-    //   - displayName: string (optional)
-    //   - photoURL: string (optional)
-    //   - role: string (required, enum: ['user', 'admin'])
-    //   - lastLogin: timestamp (optional)
-    //
-    // Collection: tips, updates, deals, courses, products, websites
-    // Document ID: auto-generated
-    // Fields:
-    //   - title/name: string (required, < 200 chars)
-    //   - content/description: string (required, < 10000 chars)
-    //   - createdAt: timestamp (required, immutable)
-    //   - views: number (optional, default 0)
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
     function isAdmin() {
-      return isAuthenticated() &&
-        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-         request.auth.token.email.lower() == "swahilitechacademy@gmail.com" ||
-         request.auth.token.email.lower() == "isayamasika100@gmail.com");
+      return request.auth != null && (
+        request.auth.token.email == "swahilitecheliteacademy@gmail.com" ||
+        request.auth.token.email == "isayamasika100@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
     }
-
-
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role']) &&
-             data.uid is string && data.uid.size() < 128 &&
-             data.email is string && data.email.size() < 100 &&
-             data.role in ['user', 'admin'];
-    }
-
-    function isOnlyViewsUpdate() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']) &&
-             request.resource.data.views is number &&
-             request.resource.data.views == resource.data.views + 1;
-    }
-
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    function isValidContent(data) {
-      return (data.get('title', '') is string && data.get('title', '').size() < 200 ||
-              data.get('name', '') is string && data.get('name', '').size() < 200) &&
-             data.get('createdAt', request.time) is timestamp;
-    }
-
-    // ===============================================================
-    // Rules
-    // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
-      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow read, write: if request.auth != null;
     }
 
-    match /tips/{tipId} {
+    match /tips/{id} {
       allow read: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() || isOnlyViewsUpdate();
-      allow delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    match /updates/{updateId} {
+    match /updates/{id} {
       allow read: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() || isOnlyViewsUpdate();
-      allow delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    match /deals/{dealId} {
+    match /deals/{id} {
       allow read: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    match /courses/{courseId} {
+    match /courses/{id} {
       allow read: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    match /products/{productId} {
+    match /products/{id} {
       allow read: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    match /websites/{websiteId} {
+    match /websites/{id} {
       allow read: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    // Default deny
-    match /{path=**} {
-      allow read, write: if false;
+    match /prompts/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }
