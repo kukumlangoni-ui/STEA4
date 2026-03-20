@@ -379,7 +379,6 @@ function UpdatesManager() {
               <Input value={form.thumb} onChange={e=>setForm(f=>({...f,thumb:e.target.value}))} placeholder="🧠"/>
             </Field>
           </div>
-          <Field label="Thumb Image URL (optional — badala ya emoji)">
           <ImageUpload value={form.thumbImg||""} onChange={v=>setForm(f=>({...f,thumbImg:v}))} label="Thumbnail Image (optional)"/>
 
           <Field label="Title *">
