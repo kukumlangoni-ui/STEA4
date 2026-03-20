@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback, Component } from "react";
-import { AlertCircle, MessageCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { initFirebase, getFirebaseAuth, getFirebaseDb,
   GoogleAuthProvider, ADMIN_EMAIL, doc, setDoc, getDoc,
   serverTimestamp, normalizeEmail,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   signInWithPopup, signOut, onAuthStateChanged, sendPasswordResetEmail
 } from "./firebase.js";
-import { collection, addDoc, updateDoc, onSnapshot, query, orderBy, increment } from "firebase/firestore";
 import { useCollection, incrementViews, timeAgo, fmtViews } from "./hooks/useFirestore.js";
 import AdminPanel from "./admin/AdminPanel.jsx";
 
@@ -60,35 +59,6 @@ class ErrorBoundary extends Component {
 // ── Tokens ────────────────────────────────────────────
 const G = "#F5A623", G2 = "#FFD17C", CB = "#141823";
 
-// ── Image Compressor ──────────────────────────────────
-export const compressImage = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 600;
-        let width = img.width;
-        let height = img.height;
-        if (width > height) {
-          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-        } else {
-          if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
-        }
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
-      };
-    };
-    reader.onerror = error => reject(error);
-  });
-};
-
 // ── Nav ───────────────────────────────────────────────
 const NAV = [
   { id:"home",     label:"Home" },
@@ -98,20 +68,21 @@ const NAV = [
   { id:"courses",  label:"Courses" },
   { id:"duka",     label:"Duka" },
   { id:"websites", label:"Websites" },
+  { id:"lab",      label:"⚗️ Prompt Lab" },
 ];
 
 const TYPED = ["Tech Tips kwa Kiswahili 💡","Courses za Kisasa 🎓","Tanzania Electronics Hub 🛍️","Websites Bora Bure 🌐","AI & ChatGPT Mastery 🤖"];
 
 // ── Static fallbacks (shown when Firestore is empty) ──
 const FALLBACK_TIPS = [
-  { id:"f1", type:"article", badge:"Android", title:"Android Hacks za kuongeza speed ya simu yako", coverImage:"https://images.unsplash.com/photo-1607252656733-fd742050d25e?q=80&w=600&auto=format&fit=crop", summary:"Settings ndogo zenye matokeo makubwa kwa battery, storage na performance ya simu yako.", readTime:"5 min", tags:["#android","#speed"], views:0, content:"Ongeza articles halisi kupitia Admin Panel!" },
-  { id:"f2", type:"article", badge:"AI", title:"AI Prompts bora kwa biashara na kazi Tanzania", coverImage:"https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=600&auto=format&fit=crop", summary:"Andika captions, scripts na ideas kwa kutumia AI kwa Kiswahili haraka.", readTime:"8 min", tags:["#ai","#business"], views:0, content:"Ongeza articles halisi kupitia Admin Panel!" },
-  { id:"f3", type:"video", badge:"YouTube", title:"Jinsi ya kutumia ChatGPT kwa biashara yako", coverImage:"https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=600&auto=format&fit=crop", channel:"TechKe Tanzania", channelImg:"🎙️", platform:"youtube", embedUrl:"https://www.youtube.com/embed/dQw4w9WgXcQ", views:0, duration:"12:30" },
+  { id:"f1", type:"article", badge:"Android", title:"Android Hacks za kuongeza speed ya simu yako", thumb:"🚀", summary:"Settings ndogo zenye matokeo makubwa kwa battery, storage na performance ya simu yako.", readTime:"5 min", tags:["#android","#speed"], views:0, content:"Ongeza articles halisi kupitia Admin Panel!" },
+  { id:"f2", type:"article", badge:"AI", title:"AI Prompts bora kwa biashara na kazi Tanzania", thumb:"🤖", summary:"Andika captions, scripts na ideas kwa kutumia AI kwa Kiswahili haraka.", readTime:"8 min", tags:["#ai","#business"], views:0, content:"Ongeza articles halisi kupitia Admin Panel!" },
+  { id:"f3", type:"video", badge:"YouTube", title:"Jinsi ya kutumia ChatGPT kwa biashara yako", thumb:"▶️", channel:"TechKe Tanzania", channelImg:"🎙️", platform:"youtube", embedUrl:"https://www.youtube.com/embed/dQw4w9WgXcQ", views:0, duration:"12:30" },
 ];
 const FALLBACK_UPDATES = [
-  { id:"u1", type:"article", badge:"AI", category:"Artificial Intelligence", title:"AI tools mpya zinaingia sokoni", coverImage:"https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=600&auto=format&fit=crop", summary:"Productivity, automation na content creation vinaendelea kubadilika kwa kasi.", readTime:"3 min", views:0, source:"TechCrunch" },
-  { id:"u2", type:"article", badge:"Android", category:"Mobile Tech", title:"Android market inazidi kuwa strong Afrika", coverImage:"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=600&auto=format&fit=crop", summary:"Simu zenye value nzuri zinaendelea kuvutia buyers wengi zaidi Afrika Mashariki.", readTime:"4 min", views:0, source:"GSMArena" },
-  { id:"u3", type:"video", badge:"YouTube", title:"AI inabadilisha dunia — Hapa ndipo tulipo", coverImage:"https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=600&auto=format&fit=crop", channel:"Fireship", channelImg:"🔥", platform:"youtube", embedUrl:"https://www.youtube.com/embed/dQw4w9WgXcQ", views:0, duration:"8:42" },
+  { id:"u1", type:"article", badge:"AI", category:"Artificial Intelligence", title:"AI tools mpya zinaingia sokoni", thumb:"🧠", summary:"Productivity, automation na content creation vinaendelea kubadilika kwa kasi.", readTime:"3 min", views:0, source:"TechCrunch" },
+  { id:"u2", type:"article", badge:"Android", category:"Mobile Tech", title:"Android market inazidi kuwa strong Afrika", thumb:"📱", summary:"Simu zenye value nzuri zinaendelea kuvutia buyers wengi zaidi Afrika Mashariki.", readTime:"4 min", views:0, source:"GSMArena" },
+  { id:"u3", type:"video", badge:"YouTube", title:"AI inabadilisha dunia — Hapa ndipo tulipo", thumb:"🔥", channel:"Fireship", channelImg:"🔥", platform:"youtube", embedUrl:"https://www.youtube.com/embed/dQw4w9WgXcQ", views:0, duration:"8:42" },
 ];
 const FALLBACK_DEALS = [
   { id:"d1", icon:"🎨", name:"Canva Pro", domain:"canva.com", url:"https://canva.com", bg:"linear-gradient(135deg,#00c4cc,#7d2ae8)", badge:"-60%", bt:"gold", meta:"Partner deal · Promo code", desc:"Templates, brand kit na magic tools kwa creators.", oldP:"$15/mo", newP:"$6/mo", save:"Save 60%", code:"STEA60", active:true },
@@ -234,23 +205,19 @@ function Skeleton(){
 }
 
 // ── Article modal ─────────────────────────────────────
-export function ArticleModal({article,onClose}){
+function ArticleModal({article,onClose}){
   useEffect(()=>{document.body.style.overflow="hidden";return()=>{document.body.style.overflow="";};});
   return(<div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,zIndex:700,background:"rgba(4,5,9,.88)",backdropFilter:"blur(18px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px",overflowY:"auto"}}>
     <div style={{width:"min(780px,100%)",borderRadius:28,border:"1px solid rgba(255,255,255,.12)",background:"rgba(12,14,22,.98)",boxShadow:"0 32px 80px rgba(0,0,0,.55)",overflow:"hidden",position:"relative",maxHeight:"90vh",overflowY:"auto"}}>
-      <button onClick={onClose} style={{position:"absolute",top:16,right:16,zIndex:10,width:38,height:38,borderRadius:12,border:"1px solid rgba(255,255,255,.1)",background:"rgba(0,0,0,.6)",color:"#fff",cursor:"pointer",fontSize:18,backdropFilter:"blur(4px)"}}>✕</button>
-      <div style={{width:"100%",height:300,position:"relative",overflow:"hidden"}}>
-        <img src={article.coverImage || "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?q=80&w=600&auto=format&fit=crop"} alt={article.title} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top, rgba(12,14,22,1) 0%, transparent 100%)"}}/>
-      </div>
+      <button onClick={onClose} style={{position:"sticky",top:16,left:"calc(100% - 54px)",display:"block",zIndex:10,width:38,height:38,borderRadius:12,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.08)",color:"#fff",cursor:"pointer",fontSize:18,marginLeft:"auto",marginRight:16}}>✕</button>
       <div style={{padding:"0 32px 36px"}}>
-        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap",marginTop:-40,position:"relative",zIndex:2}}>
+        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
           <span style={{padding:"5px 12px",borderRadius:999,fontSize:12,fontWeight:800,...BS.gold}}>{article.badge}</span>
           {article.readTime&&<span style={{fontSize:13,color:"rgba(255,255,255,.45)"}}>{article.readTime} read</span>}
           {article.createdAt&&<span style={{fontSize:13,color:"rgba(255,255,255,.35)"}}>{timeAgo(article.createdAt)}</span>}
           <span style={{fontSize:13,color:"rgba(255,255,255,.35)"}}>👁 {fmtViews(article.views)} views</span>
         </div>
-        <h1 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(22px,3vw,34px)",letterSpacing:"-.04em",margin:"0 0 16px",lineHeight:1.15,position:"relative",zIndex:2}}>{article.title}</h1>
+        <h1 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(22px,3vw,34px)",letterSpacing:"-.04em",margin:"0 0 16px",lineHeight:1.15}}>{article.title}</h1>
         <p style={{color:"rgba(255,255,255,.65)",fontSize:16,lineHeight:1.85,margin:"0 0 24px",borderLeft:`3px solid ${G}`,paddingLeft:16}}>{article.summary}</p>
         <div style={{color:"rgba(255,255,255,.78)",fontSize:15,lineHeight:1.9,whiteSpace:"pre-wrap"}}>{article.content||"Maudhui kamili yanaendelea kuandikwa. Rudi hivi karibuni!"}</div>
         {article.tags&&<div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:24}}>{(Array.isArray(article.tags)?article.tags:[]).map((t,i)=><span key={i} style={{color:G,fontSize:13,fontWeight:800}}>{t}</span>)}</div>}
@@ -261,7 +228,7 @@ export function ArticleModal({article,onClose}){
 }
 
 // ── Video modal ───────────────────────────────────────
-export function VideoModal({video,onClose}){
+function VideoModal({video,onClose}){
   useEffect(()=>{document.body.style.overflow="hidden";return()=>{document.body.style.overflow="";};});
   return(<div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,zIndex:700,background:"rgba(4,5,9,.92)",backdropFilter:"blur(20px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
     <div style={{width:"min(860px,100%)",borderRadius:24,overflow:"hidden",border:"1px solid rgba(255,255,255,.12)",boxShadow:"0 32px 80px rgba(0,0,0,.6)",position:"relative"}}>
@@ -283,16 +250,17 @@ function ArticleCard({item,onRead,collection:col}){
     if(item.id&&!item.id.startsWith("f")&&!item.id.startsWith("u"))incrementViews(col,item.id);
     onRead(item);
   };
-  return(<TiltCard style={{display:"flex",flexDirection:"column",height:"100%"}}>
-    <div onClick={handleRead} style={{position:"relative",paddingTop:"56.25%",background:"#1a1d2e",cursor:"pointer",overflow:"hidden"}}>
-      <img src={item.coverImage||"https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?q=80&w=600&auto=format&fit=crop"} alt={item.title} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",transition:"transform .3s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}/>
-      <div style={{position:"absolute",inset:0,background:"linear-gradient(to top, rgba(12,14,22,0.9) 0%, transparent 60%)",pointerEvents:"none"}}/>
-      <div style={{position:"absolute",top:12,left:12,padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...BS.gold,backdropFilter:"blur(4px)"}}>{item.badge}</div>
-      <div style={{position:"absolute",bottom:12,left:12,fontSize:12,color:"rgba(255,255,255,.8)",fontWeight:700,background:"rgba(0,0,0,.5)",padding:"4px 8px",borderRadius:6,backdropFilter:"blur(4px)"}}>{item.readTime||"5 min"} read</div>
+  return(<TiltCard>
+    <div style={{padding:"18px 18px 10px",display:"flex",alignItems:"center",gap:12,background:"linear-gradient(135deg,rgba(245,166,35,.1),rgba(255,255,255,.02)),linear-gradient(180deg,#1e2030,#161820)",minHeight:90}}>
+      <div style={{fontSize:48,flexShrink:0,filter:"drop-shadow(0 4px 12px rgba(0,0,0,.5))"}}>{item.thumb||"📝"}</div>
+      <div>
+        <span style={{display:"inline-block",padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...BS.gold}}>{item.badge}</span>
+        <div style={{fontSize:12,color:"rgba(255,255,255,.4)",marginTop:4}}>{item.readTime||"5 min"} read</div>
+      </div>
     </div>
-    <div style={{padding:18,display:"flex",flexDirection:"column",flex:1}}>
+    <div style={{padding:18}}>
       <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:18,margin:"0 0 9px",letterSpacing:"-.03em",lineHeight:1.25}}>{item.title}</h3>
-      <p style={{color:"rgba(255,255,255,.62)",fontSize:14,lineHeight:1.75,margin:"0 0 12px",flex:1}}>{item.summary}</p>
+      <p style={{color:"rgba(255,255,255,.62)",fontSize:14,lineHeight:1.75,margin:"0 0 12px"}}>{item.summary}</p>
       <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:14}}>
         <span style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>👁 {fmtViews(item.views)}</span>
         {item.createdAt&&<span style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>{timeAgo(item.createdAt)}</span>}
@@ -303,36 +271,24 @@ function ArticleCard({item,onRead,collection:col}){
   </TiltCard>);
 }
 
-export const getVideoThumb = (item) => {
-  if (item.coverImage) return item.coverImage;
-  if (item.platform === "youtube" && item.embedUrl) {
-    const match = item.embedUrl.match(/embed\/([^?]+)/);
-    if (match && match[1]) {
-      return `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`;
-    }
-  }
-  return "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=600&auto=format&fit=crop";
-};
-
 // ── Video Card ────────────────────────────────────────
 function VideoCard({item,onPlay,collection:col}){
   const handlePlay=()=>{
     if(item.id&&!item.id.startsWith("f")&&!item.id.startsWith("u"))incrementViews(col,item.id);
     onPlay(item);
   };
-  return(<TiltCard style={{display:"flex",flexDirection:"column",height:"100%"}}>
-    <div onClick={handlePlay} style={{position:"relative",paddingTop:"56.25%",background:"#1a1d2e",cursor:"pointer",overflow:"hidden"}}>
-      <img src={getVideoThumb(item)} alt={item.title} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",transition:"transform .3s",opacity:0.7}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}/>
-      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+  return(<TiltCard>
+    <div onClick={handlePlay} style={{position:"relative",paddingTop:"56%",background:"linear-gradient(135deg,rgba(245,166,35,.12),rgba(255,255,255,.02)),linear-gradient(180deg,#1e2030,#161820)",cursor:"pointer",overflow:"hidden"}}>
+      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
         <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(245,166,35,.92)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:"#111",fontWeight:900,boxShadow:`0 0 0 10px rgba(245,166,35,.18)`}}>▶</div>
       </div>
-      <div style={{position:"absolute",top:12,left:12,padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...(item.platform==="youtube"?BS.red:BS.purple),backdropFilter:"blur(4px)"}}>{item.platform==="youtube"?"▶ YouTube":"♪ TikTok"}</div>
-      <div style={{position:"absolute",bottom:12,right:12,padding:"4px 8px",borderRadius:8,fontSize:11,fontWeight:700,background:"rgba(0,0,0,.7)",color:"#fff",backdropFilter:"blur(4px)"}}>{item.duration}</div>
+      <div style={{position:"absolute",top:10,left:10,padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...(item.platform==="youtube"?BS.red:BS.purple)}}>{item.platform==="youtube"?"▶ YouTube":"♪ TikTok"}</div>
+      <div style={{position:"absolute",bottom:10,right:10,padding:"4px 8px",borderRadius:8,fontSize:11,fontWeight:700,background:"rgba(0,0,0,.7)",color:"#fff"}}>{item.duration}</div>
     </div>
-    <div style={{padding:18,display:"flex",flexDirection:"column",flex:1}}>
+    <div style={{padding:16}}>
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}><span style={{fontSize:22}}>{item.channelImg||"🎬"}</span><div><div style={{fontWeight:800,fontSize:13}}>{item.channel}</div><div style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>👁 {fmtViews(item.views)} views</div></div></div>
-      <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:17,margin:"0 0 12px",letterSpacing:"-.02em",lineHeight:1.3,flex:1}}>{item.title}</h3>
-      <GoldBtn onClick={handlePlay} style={{fontSize:13,padding:"9px 14px",width:"100%",justifyContent:"center"}}>▶ Tazama Sasa</GoldBtn>
+      <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:16,margin:"0 0 12px",letterSpacing:"-.02em",lineHeight:1.3}}>{item.title}</h3>
+      <GoldBtn onClick={handlePlay} style={{fontSize:12,padding:"8px 14px",width:"100%",justifyContent:"center"}}>▶ Tazama Sasa</GoldBtn>
     </div>
   </TiltCard>);
 }
@@ -444,84 +400,19 @@ function AuthModal({onClose,onUser}){
   </div>);
 }
 
-// ── User Profile Modal ────────────────────────────────
-function UserProfileModal({user, onClose, onUpdate}){
-  const [name, setName] = useState(user.displayName || user.name || "");
-  const [photo, setPhoto] = useState(user.photoURL || "");
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  const saveProfile = async () => {
-    setLoading(true);
-    setMsg("");
-    try {
-      const db = getFirebaseDb();
-      await setDoc(doc(db, "users", user.uid), { name, photoURL: photo }, { merge: true });
-      onUpdate({ ...user, displayName: name, name, photoURL: photo });
-      setMsg("✅ Profile imehifadhiwa!");
-      setTimeout(onClose, 1500);
-    } catch(e) {
-      setMsg("⚠️ " + e.message);
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,zIndex:800,background:"rgba(4,5,9,.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{width:"min(420px,100%)",borderRadius:24,border:"1px solid rgba(255,255,255,.12)",background:"rgba(16,18,28,.98)",padding:28,boxShadow:"0 24px 60px rgba(0,0,0,.5)",position:"relative"}}>
-        <button onClick={onClose} style={{position:"absolute",right:16,top:16,zIndex:20,width:32,height:32,borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.06)",color:"#fff",cursor:"pointer",fontSize:16}}>✕</button>
-        <h2 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:24,margin:"0 0 20px"}}>👤 My Profile</h2>
-        
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,marginBottom:24}}>
-          <div style={{width:90,height:90,borderRadius:"50%",background:"rgba(255,255,255,.05)",border:`2px solid ${G}`,overflow:"hidden",display:"grid",placeItems:"center",fontSize:32,color:G}}>
-            {photo ? <img src={photo} alt="Profile" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : (name||"S")[0].toUpperCase()}
-          </div>
-          <label style={{cursor:"pointer",fontSize:13,fontWeight:800,color:"#111",background:G,padding:"6px 14px",borderRadius:99}}>
-            📷 Badili Picha
-            <input type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
-              if(e.target.files && e.target.files[0]){
-                const base64 = await compressImage(e.target.files[0]);
-                setPhoto(base64);
-              }
-            }}/>
-          </label>
-        </div>
-
-        <div style={{display:"grid",gap:16,marginBottom:24}}>
-          <div>
-            <label style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,.5)",textTransform:"uppercase",marginBottom:6,display:"block"}}>Jina (Display Name)</label>
-            <input value={name} onChange={e=>setName(e.target.value)} style={{width:"100%",height:46,borderRadius:12,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.05)",color:"#fff",padding:"0 14px",outline:"none",fontSize:15}} />
-          </div>
-          <div>
-            <label style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,.5)",textTransform:"uppercase",marginBottom:6,display:"block"}}>Email</label>
-            <input value={user.email} disabled style={{width:"100%",height:46,borderRadius:12,border:"1px solid rgba(255,255,255,.05)",background:"rgba(255,255,255,.02)",color:"rgba(255,255,255,.4)",padding:"0 14px",outline:"none",fontSize:15}} />
-          </div>
-        </div>
-
-        {msg && <div style={{fontSize:13,padding:"10px",borderRadius:8,background:"rgba(255,255,255,.05)",color:msg.startsWith("✅")?"#00C48C":"#fca5a5",marginBottom:16,textAlign:"center"}}>{msg}</div>}
-
-        <GoldBtn onClick={saveProfile} disabled={loading} style={{width:"100%",justifyContent:"center",height:46,fontSize:15}}>{loading ? "Inahifadhi..." : "💾 Hifadhi Profile"}</GoldBtn>
-      </div>
-    </div>
-  );
-}
-
 // ── User Chip ─────────────────────────────────────────
-function UserChip({user,onLogout,onAdmin,onProfile}){
+function UserChip({user,onLogout,onAdmin}){
   const[open,setOpen]=useState(false);const ref=useRef(null);
   useEffect(()=>{const fn=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("click",fn);return()=>document.removeEventListener("click",fn);},[]);
-  const ini=(user.displayName||user.name||user.email||"S")[0].toUpperCase();
+  const ini=(user.displayName||user.email||"S")[0].toUpperCase();
   return(<div ref={ref} style={{position:"relative"}}>
-    <button onClick={()=>setOpen(v=>!v)} style={{width:42,height:42,borderRadius:14,border:`2px solid ${G}`,background:`linear-gradient(135deg,${G},${G2})`,color:"#111",fontWeight:900,fontSize:16,cursor:"pointer",display:"grid",placeItems:"center",flexShrink:0,overflow:"hidden",padding:0}}>
-      {user.photoURL ? <img src={user.photoURL} alt="User" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : ini}
-    </button>
+    <button onClick={()=>setOpen(v=>!v)} style={{width:42,height:42,borderRadius:14,border:`2px solid ${G}`,background:`linear-gradient(135deg,${G},${G2})`,color:"#111",fontWeight:900,fontSize:16,cursor:"pointer",display:"grid",placeItems:"center",flexShrink:0}}>{ini}</button>
     {open&&(<div style={{position:"absolute",right:0,top:"calc(100% + 8px)",width:230,borderRadius:18,border:"1px solid rgba(255,255,255,.12)",background:"rgba(14,16,26,.98)",boxShadow:"0 24px 60px rgba(0,0,0,.45)",padding:12,zIndex:500}}>
       <div style={{padding:"10px 12px",borderRadius:12,background:"rgba(255,255,255,.04)",marginBottom:10}}>
-        <div style={{fontWeight:800,fontSize:14,marginBottom:3}}>{user.displayName||user.name||"STEA User"}</div>
+        <div style={{fontWeight:800,fontSize:14,marginBottom:3}}>{user.displayName||"STEA User"}</div>
         <div style={{fontSize:12,color:"rgba(255,255,255,.4)",wordBreak:"break-all"}}>{user.email}</div>
         {user.role==="admin"&&<span style={{display:"inline-block",marginTop:6,fontSize:10,fontWeight:900,padding:"3px 9px",borderRadius:99,background:"rgba(245,166,35,.15)",color:G,border:"1px solid rgba(245,166,35,.28)"}}>⚡ ADMIN</span>}
       </div>
-      <button onClick={()=>{onProfile();setOpen(false);}} style={{width:"100%",marginBottom:8,padding:"10px 14px",borderRadius:12,border:"none",background:"rgba(255,255,255,.05)",color:"#fff",fontWeight:800,cursor:"pointer",textAlign:"left",fontSize:14}}>👤 My Profile</button>
       {user.role==="admin"&&<button onClick={()=>{onAdmin();setOpen(false);}} style={{width:"100%",marginBottom:8,padding:"10px 14px",borderRadius:12,border:"none",background:"rgba(245,166,35,.1)",color:G,fontWeight:800,cursor:"pointer",textAlign:"left",fontSize:14}}>⚙️ Admin Dashboard</button>}
       <button onClick={()=>{onLogout();setOpen(false);}} style={{width:"100%",padding:"10px 14px",borderRadius:12,border:"none",background:"rgba(239,68,68,.1)",color:"#fca5a5",fontWeight:800,cursor:"pointer",textAlign:"left",fontSize:14}}>🚪 Logout</button>
     </div>)}
@@ -536,13 +427,8 @@ function TipsPage(){
   const[art,setArt]=useState(null);
   const[vid,setVid]=useState(null);
 
-  const articles = docs.filter(d=>d.type==="article"||!d.type);
-  const videos = docs.filter(d=>d.type==="video");
-
-  const fallbackArticles = FALLBACK_TIPS.filter(d=>d.type==="article"||!d.type);
-  const fallbackVideos = FALLBACK_TIPS.filter(d=>d.type==="video");
-  const displayArticles = articles.length >= fallbackArticles.length ? articles : [...articles, ...fallbackArticles].slice(0, fallbackArticles.length);
-  const displayVideos = videos.length >= fallbackVideos.length ? videos : [...videos, ...fallbackVideos].slice(0, fallbackVideos.length);
+  const articles=(docs.length>0?docs:FALLBACK_TIPS).filter(d=>d.type==="article"||!d.type);
+  const videos  =(docs.length>0?docs:FALLBACK_TIPS).filter(d=>d.type==="video");
 
   return(<section style={{padding:"26px 0"}}><W>
     {art&&<ArticleModal article={art} onClose={()=>setArt(null)}/>}
@@ -550,12 +436,12 @@ function TipsPage(){
     <SHead title="Tech" hi="Tips" copy="Articles na videos za Android, iPhone, PC na AI kwa matumizi ya kila siku."/>
     <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,letterSpacing:"-.03em",margin:"0 0 16px"}}>📝 Articles <span style={{color:G}}>& Guides</span></h3>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22,marginBottom:40}}>
-      {loading?[1,2,3].map(i=><Skeleton key={i}/>):displayArticles.map(item=><ArticleCard key={item.id} item={item} onRead={setArt} collection="tips"/>)}
+      {loading?[1,2,3].map(i=><Skeleton key={i}/>):articles.map(item=><ArticleCard key={item.id} item={item} onRead={setArt} collection="tips"/>)}
     </div>
-    {displayVideos.length>0&&<>
+    {videos.length>0&&<>
       <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,letterSpacing:"-.03em",margin:"0 0 16px"}}>🎬 Videos <span style={{color:G}}>za Tech</span></h3>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
-        {displayVideos.map(item=><VideoCard key={item.id} item={item} onPlay={setVid} collection="tips"/>)}
+        {videos.map(item=><VideoCard key={item.id} item={item} onPlay={setVid} collection="tips"/>)}
       </div>
     </>}
   </W></section>);
@@ -566,13 +452,8 @@ function UpdatesPage(){
   const[art,setArt]=useState(null);
   const[vid,setVid]=useState(null);
 
-  const articles = docs.filter(d=>d.type==="article"||!d.type);
-  const videos = docs.filter(d=>d.type==="video");
-  
-  const fallbackArticles = FALLBACK_UPDATES.filter(d=>d.type==="article"||!d.type);
-  const fallbackVideos = FALLBACK_UPDATES.filter(d=>d.type==="video");
-  const displayArticles = articles.length >= fallbackArticles.length ? articles : [...articles, ...fallbackArticles].slice(0, fallbackArticles.length);
-  const displayVideos = videos.length >= fallbackVideos.length ? videos : [...videos, ...fallbackVideos].slice(0, fallbackVideos.length);
+  const articles=(docs.length>0?docs:FALLBACK_UPDATES).filter(d=>d.type==="article"||!d.type);
+  const videos  =(docs.length>0?docs:FALLBACK_UPDATES).filter(d=>d.type==="video");
 
   return(<section style={{padding:"26px 0"}}><W>
     {art&&<ArticleModal article={art} onClose={()=>setArt(null)}/>}
@@ -580,17 +461,15 @@ function UpdatesPage(){
     <SHead title="Latest Tech Updates" hi="Around The World" copy="Habari mpya za AI, Android, Africa Tech na trends za tech world."/>
     <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,letterSpacing:"-.03em",margin:"0 0 16px"}}>📰 Tech <span style={{color:G}}>News</span></h3>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22,marginBottom:40}}>
-      {loading?[1,2,3].map(i=><Skeleton key={i}/>):displayArticles.map(item=>(
-        <TiltCard key={item.id} style={{display:"flex",flexDirection:"column",height:"100%"}}>
-          <div onClick={()=>{if(item.id&&!item.id.startsWith("u"))incrementViews("updates",item.id);setArt(item);}} style={{position:"relative",paddingTop:"56.25%",background:"#1a1d2e",cursor:"pointer",overflow:"hidden"}}>
-            <img src={item.coverImage||"https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?q=80&w=600&auto=format&fit=crop"} alt={item.title} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",transition:"transform .3s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}/>
-            <div style={{position:"absolute",inset:0,background:"linear-gradient(to top, rgba(12,14,22,0.9) 0%, transparent 60%)",pointerEvents:"none"}}/>
-            <div style={{position:"absolute",top:12,left:12,padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...BS.gold,backdropFilter:"blur(4px)"}}>{item.badge}</div>
-            <div style={{position:"absolute",bottom:12,left:12,fontSize:11,color:"rgba(255,255,255,.8)",fontWeight:700,background:"rgba(0,0,0,.5)",padding:"4px 8px",borderRadius:6,backdropFilter:"blur(4px)"}}>{item.category}</div>
+      {loading?[1,2,3].map(i=><Skeleton key={i}/>):articles.map(item=>(
+        <TiltCard key={item.id}>
+          <div style={{padding:"16px 18px 10px",background:"linear-gradient(135deg,rgba(245,166,35,.08),rgba(255,255,255,.02)),linear-gradient(180deg,#1e2030,#161820)",display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{fontSize:42,filter:"drop-shadow(0 4px 12px rgba(0,0,0,.5))"}}>{item.thumb}</div>
+            <div><span style={{display:"inline-block",padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...BS.gold}}>{item.badge}</span><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:4}}>{item.category}</div></div>
           </div>
-          <div style={{padding:18,display:"flex",flexDirection:"column",flex:1}}>
+          <div style={{padding:18}}>
             <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:17,margin:"0 0 9px",letterSpacing:"-.03em",lineHeight:1.25}}>{item.title}</h3>
-            <p style={{color:"rgba(255,255,255,.62)",fontSize:14,lineHeight:1.75,margin:"0 0 12px",flex:1}}>{item.summary}</p>
+            <p style={{color:"rgba(255,255,255,.62)",fontSize:14,lineHeight:1.75,margin:"0 0 12px"}}>{item.summary}</p>
             <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:14}}>
               <span style={{color:G,fontSize:12,fontWeight:800}}>👁 {fmtViews(item.views)}</span>
               {item.createdAt&&<span style={{color:"#75c5ff",fontSize:12,fontWeight:800}}>{timeAgo(item.createdAt)}</span>}
@@ -601,10 +480,10 @@ function UpdatesPage(){
         </TiltCard>
       ))}
     </div>
-    {displayVideos.length>0&&<>
+    {videos.length>0&&<>
       <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,letterSpacing:"-.03em",margin:"0 0 16px"}}>🎬 Tech <span style={{color:G}}>Videos</span></h3>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
-        {displayVideos.map(item=><VideoCard key={item.id} item={item} onPlay={setVid} collection="updates"/>)}
+        {videos.map(item=><VideoCard key={item.id} item={item} onPlay={setVid} collection="updates"/>)}
       </div>
     </>}
   </W></section>);
@@ -612,8 +491,7 @@ function UpdatesPage(){
 
 function DealsPage(){
   const{docs,loading}=useCollection("deals","createdAt");
-  const activeDocs = docs.filter(d=>d.active!==false);
-  const deals = activeDocs.length >= FALLBACK_DEALS.length ? activeDocs : [...activeDocs, ...FALLBACK_DEALS].slice(0, FALLBACK_DEALS.length);
+  const deals=(docs.filter(d=>d.active!==false).length>0?docs.filter(d=>d.active!==false):FALLBACK_DEALS);
 
   return(<section style={{padding:"26px 0"}}><W>
     <SHead title="Premium" hi="Deals" copy="Discounts, promo codes na referral deals — napata commission, wewe unapata bei nzuri."/>
@@ -641,7 +519,7 @@ function DealsPage(){
 
 function CoursesPage(){
   const{docs,loading}=useCollection("courses","createdAt");
-  const courses = docs.length >= FALLBACK_COURSES.length ? docs : [...docs, ...FALLBACK_COURSES].slice(0, FALLBACK_COURSES.length);
+  const courses=docs.length>0?docs:FALLBACK_COURSES;
 
   return(<section style={{padding:"26px 0"}}><W>
     <SHead title="Kozi za" hi="Kisasa" copy="Mwanzo mpaka practical mastery kwa beginner, creator na mtu anayejenga career."/>
@@ -677,8 +555,8 @@ function DukaPage(){
     <SHead title="Electronics" hi="Duka" copy="Curated affiliate products na verified deals kwa buyers wa Tanzania."/>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
       {loading ? [1,2,3].map(i=><Skeleton key={i}/>) : products.map((p,i)=>(<TiltCard key={p.id||i}>
-        <div style={{paddingTop:"52%",position:"relative",background:"linear-gradient(135deg,rgba(245,166,35,.15),rgba(255,255,255,.03)),linear-gradient(180deg,#252538,#171720)",overflow:"hidden"}}>
-          {p.coverImage ? <img src={p.coverImage} alt={p.name} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",transition:"transform .3s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}/> : <div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",fontSize:52}}>{p.icon}</div>}
+        <div style={{paddingTop:"52%",position:"relative",background:"linear-gradient(135deg,rgba(245,166,35,.15),rgba(255,255,255,.03)),linear-gradient(180deg,#252538,#171720)"}}>
+          <div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",fontSize:52}}>{p.icon}</div>
           {p.badge && <div style={{position:"absolute",top:14,left:14,borderRadius:999,padding:"6px 11px",border:"1px solid rgba(255,255,255,.08)",background:"rgba(14,14,22,.75)",color:G,fontSize:11,fontWeight:800}}>{p.badge}</div>}
         </div>
         <div style={{padding:18}}>
@@ -697,7 +575,7 @@ function DukaPage(){
 
 function WebsitesPage(){
   const { docs, loading } = useCollection("websites", "createdAt");
-  const websites = docs.length >= WEBSITES.length ? docs : [...docs, ...WEBSITES].slice(0, WEBSITES.length);
+  const websites = docs.length > 0 ? docs : WEBSITES;
 
   return(<section style={{padding:"26px 0"}}><W>
     <SHead title="Websites za" hi="Kijanja" copy="Sites zinazookoa pesa, muda na nguvu — nimezijaribu zote."/>
@@ -721,6 +599,385 @@ function WebsitesPage(){
   </W></section>);
 }
 
+// ── Robotic Hand Hero Component ───────────────────────
+const ROBOT_IMG = "https://i.imgur.com/8X9QZQM.png"; // fallback
+function RoboticHand(){
+  const [phase, setPhase] = useState("enter"); // enter | settle | static
+  useEffect(()=>{
+    // Phase 1: entrance animation (0-2s)
+    // Phase 2: settle (2-4s)
+    // Phase 3: static background element
+    const t1 = setTimeout(()=>setPhase("settle"), 2000);
+    const t2 = setTimeout(()=>setPhase("static"), 4000);
+    return()=>{clearTimeout(t1);clearTimeout(t2);};
+  },[]);
+
+  const styles = {
+    enter: {
+      opacity:0,
+      transform:"translateX(120px) translateY(40px) rotate(-15deg) scale(0.7)",
+      filter:"drop-shadow(0 0 60px rgba(138,43,226,.8))",
+    },
+    settle: {
+      opacity:.85,
+      transform:"translateX(0px) translateY(0px) rotate(0deg) scale(1)",
+      filter:"drop-shadow(0 0 40px rgba(138,43,226,.5))",
+    },
+    static: {
+      opacity:.7,
+      transform:"translateX(0px) translateY(0px) rotate(0deg) scale(1)",
+      filter:"drop-shadow(0 0 30px rgba(138,43,226,.35))",
+    },
+  };
+
+  return(
+    <div style={{
+      position:"absolute",
+      right:"-2%",
+      bottom:"-5%",
+      width:"clamp(280px,45%,560px)",
+      height:"clamp(320px,55%,640px)",
+      pointerEvents:"none",
+      zIndex:1,
+      transition:"opacity 1.2s cubic-bezier(.4,0,.2,1), transform 1.2s cubic-bezier(.34,1.56,.64,1), filter 1.2s ease",
+      ...styles[phase],
+    }}>
+      <svg viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg" style={{width:"100%",height:"100%",objectFit:"contain"}}>
+        <defs>
+          <linearGradient id="rh1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#7c3aed"/>
+            <stop offset="50%" stopColor="#4f46e5"/>
+            <stop offset="100%" stopColor="#06b6d4"/>
+          </linearGradient>
+          <linearGradient id="rh2" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#8b5cf6"/>
+            <stop offset="100%" stopColor="#06b6d4"/>
+          </linearGradient>
+          <linearGradient id="rh3" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#1e1b4b"/>
+            <stop offset="100%" stopColor="#312e81"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <radialGradient id="joint" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#22d3ee"/>
+            <stop offset="100%" stopColor="#0891b2"/>
+          </radialGradient>
+        </defs>
+
+        {/* Forearm */}
+        <path d="M160 500 Q140 420 150 360 Q155 330 200 320 Q245 330 250 360 Q260 420 240 500Z"
+          fill="url(#rh3)" stroke="url(#rh2)" strokeWidth="2"/>
+        <path d="M165 480 Q155 420 160 370" stroke="url(#rh2)" strokeWidth="1.5" fill="none" opacity=".6"/>
+        <path d="M235 480 Q245 420 240 370" stroke="url(#rh2)" strokeWidth="1.5" fill="none" opacity=".6"/>
+
+        {/* Wrist joint */}
+        <ellipse cx="200" cy="320" rx="52" ry="22" fill="url(#rh1)" filter="url(#glow)"/>
+        <ellipse cx="200" cy="318" rx="42" ry="16" fill="url(#rh3)" stroke="url(#rh2)" strokeWidth="1.5"/>
+        {[160,180,200,220,240].map((x,i)=>(
+          <circle key={i} cx={x} cy="318" r="4" fill="url(#joint)" opacity=".9"/>
+        ))}
+
+        {/* Palm */}
+        <path d="M148 260 Q145 300 148 320 L252 320 Q255 300 252 260 Q248 240 200 236 Q152 240 148 260Z"
+          fill="url(#rh3)" stroke="url(#rh2)" strokeWidth="2"/>
+        <path d="M155 265 Q155 310 158 318 M245 265 Q245 310 242 318"
+          stroke="url(#rh2)" strokeWidth="1" fill="none" opacity=".5"/>
+
+        {/* Knuckle joints */}
+        {[163,188,200,213,237].map((x,i)=>(
+          <g key={i}>
+            <ellipse cx={x} cy="260" rx="10" ry="8" fill="url(#rh1)" opacity=".9"/>
+            <ellipse cx={x} cy="259" rx="7" ry="5" fill="url(#rh3)"/>
+            <circle cx={x} cy="259" r="2.5" fill="url(#joint)"/>
+          </g>
+        ))}
+
+        {/* Finger 1 — pinky (curled) */}
+        <path d="M148 260 Q135 240 130 220 Q128 205 138 200 Q148 198 152 215 Q155 235 155 258"
+          fill="url(#rh3)" stroke="url(#rh2)" strokeWidth="2"/>
+        <ellipse cx="139" cy="200" rx="9" ry="7" fill="url(#rh1)" opacity=".85"/>
+
+        {/* Finger 2 — ring */}
+        <path d="M163 258 Q158 225 158 195 Q159 175 170 170 Q181 168 183 188 Q184 215 180 258"
+          fill="url(#rh3)" stroke="url(#rh2)" strokeWidth="2"/>
+        <ellipse cx="171" cy="170" rx="10" ry="8" fill="url(#rh1)" opacity=".85"/>
+        <ellipse cx="166" cy="215" rx="8" ry="6" fill="url(#rh1)" opacity=".7"/>
+
+        {/* Finger 3 — middle (tallest) */}
+        <path d="M188 257 Q185 215 185 175 Q186 150 200 146 Q214 148 215 175 Q215 215 212 257"
+          fill="url(#rh3)" stroke="url(#rh2)" strokeWidth="2"/>
+        <ellipse cx="200" cy="146" rx="11" ry="9" fill="url(#rh1)" filter="url(#glow)"/>
+        <ellipse cx="200" cy="205" rx="9" ry="7" fill="url(#rh1)" opacity=".7"/>
+        <circle cx="200" cy="146" r="4" fill="url(#joint)"/>
+
+        {/* Finger 4 — index */}
+        <path d="M213 257 Q216 220 218 188 Q220 165 232 162 Q243 162 244 185 Q244 218 238 258"
+          fill="url(#rh3)" stroke="url(#rh2)" strokeWidth="2"/>
+        <ellipse cx="233" cy="162" rx="10" ry="8" fill="url(#rh1)" opacity=".85"/>
+        <ellipse cx="228" cy="215" rx="8" ry="6" fill="url(#rh1)" opacity=".7"/>
+
+        {/* Finger 5 — thumb */}
+        <path d="M252 268 Q275 255 288 238 Q298 224 292 212 Q284 202 272 210 Q260 222 255 248"
+          fill="url(#rh3)" stroke="url(#rh2)" strokeWidth="2"/>
+        <ellipse cx="291" cy="211" rx="9" ry="8" fill="url(#rh1)" opacity=".85"/>
+
+        {/* Glow dots on fingertips */}
+        {[[139,200],[171,170],[200,146],[233,162],[291,211]].map(([x,y],i)=>(
+          <circle key={i} cx={x} cy={y} r="3" fill="#22d3ee" opacity=".9" filter="url(#glow)"/>
+        ))}
+
+        {/* Ambient glow underneath */}
+        <ellipse cx="200" cy="490" rx="80" ry="12" fill="#7c3aed" opacity=".25"/>
+      </svg>
+    </div>
+  );
+}
+
+// ── Hero title fade-in ────────────────────────────────
+function HeroTitle(){
+  const [visible, setVisible] = useState(false);
+  useEffect(()=>{ const t=setTimeout(()=>setVisible(true), 3800); return()=>clearTimeout(t); },[]);
+  return(
+    <h1 style={{
+      fontFamily:"'Bricolage Grotesque',sans-serif",
+      fontSize:"clamp(46px,7vw,106px)",
+      lineHeight:.88,
+      letterSpacing:"-.07em",
+      margin:"0 0 14px",
+      transition:"opacity 1.2s ease, transform 1.2s ease",
+      opacity: visible ? 1 : 0,
+      transform: visible ? "translateY(0)" : "translateY(20px)",
+    }}>
+      <span style={{display:"block"}}>SwahiliTech</span>
+      <span style={{display:"block",background:`linear-gradient(135deg,#F5A623,#FFD17C)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Elite Academy</span>
+    </h1>
+  );
+}
+
+// ── Prompt Lab Data ───────────────────────────────────
+const PROMPT_LAB_DATA = [
+  {
+    id:"p1",
+    category:"📱 Instagram Content",
+    emoji:"📸",
+    title:"Caption ya Instagram Inayovutia",
+    prompt:"Niandikia caption ya Instagram kwa biashara ya [AINA YA BIASHARA] inayouza [BIDHAA]. Itumie emoji, hashtags 5 na CTA nzuri. Lugha: Kiswahili. Toni: friendly na professional.",
+    guide:[
+      "Badilisha [AINA YA BIASHARA] na biashara yako — mfano: 'duka la nguo'",
+      "Badilisha [BIDHAA] na bidhaa unayouza — mfano: 'madresi ya shule'",
+      "Nakili prompt → Weka kwenye ChatGPT au Gemini",
+      "Edit kidogo matokeo kulingana na brand yako",
+    ],
+    tags:["Instagram","Caption","Kiswahili"],
+  },
+  {
+    id:"p2",
+    category:"🤖 AI Business",
+    emoji:"💼",
+    title:"Business Plan ya Haraka",
+    prompt:"Nitengenezee business plan fupi kwa biashara ya [AINA YA BIASHARA] Tanzania. Nijumuishie: muhtasari, wateja walengwa, mapato yanayotarajiwa, changamoto na mkakati wa masoko. Lugha rahisi ya Kiswahili.",
+    guide:[
+      "Badilisha [AINA YA BIASHARA] na idea yako ya biashara",
+      "Tumia ChatGPT-4 kwa matokeo bora zaidi",
+      "Omba mabadiliko kama unahitaji — 'Ongeza sehemu ya...'",
+      "Print au save kama PDF kwa investors",
+    ],
+    tags:["Business","Planning","AI"],
+  },
+  {
+    id:"p3",
+    category:"📝 Content Creation",
+    emoji:"✍️",
+    title:"Script ya Video ya TikTok/Reels",
+    prompt:"Niandikia script ya video ya sekunde 60 kuhusu [MADA] kwa vijana wa Tanzania. Anze na hook inayovutia, toa value 3 muhimu, malizia na CTA. Lugha: Kiswahili cha kawaida. Format: [Hook] [Point 1] [Point 2] [Point 3] [CTA]",
+    guide:[
+      "Badilisha [MADA] — mfano: 'jinsi ya kutumia AI kupata pesa'",
+      "Hook ni muhimu — sekunde 3 za kwanza ziamue kila kitu",
+      "Rekodi kwa phone yako, edit na CapCut",
+      "Post wakati mzuri: 7pm-9pm Tanzania time",
+    ],
+    tags:["TikTok","Reels","Script"],
+  },
+  {
+    id:"p4",
+    category:"💰 Affiliate Marketing",
+    emoji:"🔗",
+    title:"Post ya Affiliate Deal",
+    prompt:"Niandikia post ya WhatsApp/Telegram kuhusu deal ya [BIDHAA/HUDUMA] ambayo ina discount ya [DISCOUNT]. Jumuisha: bei ya zamani, bei mpya, promo code '[CODE]', na sababu 3 za kununua sasa. Lugha: Kiswahili. Iwe ya kushawishi lakini ya kweli.",
+    guide:[
+      "Badilisha [BIDHAA/HUDUMA], [DISCOUNT] na [CODE] na details halisi",
+      "Ongeza urgency — 'Offer inaisha [TAREHE]'",
+      "Tuma kwenye WhatsApp groups zako",
+      "Track clicks kwa bit.ly au link shortener",
+    ],
+    tags:["Affiliate","WhatsApp","Marketing"],
+  },
+  {
+    id:"p5",
+    category:"🎓 Learning",
+    emoji:"📚",
+    title:"Muhtasari wa Kujifunza",
+    prompt:"Nielezeee [MADA/CONCEPT] kwa lugha rahisi kama ninaelezea mtu wa miaka 15 Tanzania. Tumia: mfano wa kawaida wa maisha ya Tanzania, hatua 5 za kuelewa, na quiz ya maswali 3 mwishowe. Jibu kwa Kiswahili.",
+    guide:[
+      "Tumia hii kujifunza topics ngumu — coding, finance, AI",
+      "Omba mifano zaidi kama hauelewi",
+      "Fanya quiz ili ujipime",
+      "Save muhtasari kwenye Notion au notes yako",
+    ],
+    tags:["Learning","Study","Education"],
+  },
+  {
+    id:"p6",
+    category:"📧 Professional",
+    emoji:"📨",
+    title:"Barua Pepe ya Professional",
+    prompt:"Niandikia barua pepe ya professional kwa [MPOKEAJI/KAMPUNI] nikitaka [LENGO - mfano: partnership, kazi, meeting]. Niwe confident lakini humble. Jumuisha: utambulisho wangu, sababu ninawasiliana, ombi wazi, na shukrani. Lugha: Kiingereza (professional).",
+    guide:[
+      "Badilisha [MPOKEAJI/KAMPUNI] na jina la mtu/kampuni",
+      "Badilisha [LENGO] na unachotaka — 'nafasi ya kazi', 'collaboration'",
+      "Soma mara 2 kabla kutuma — angalia spelling",
+      "Follow up baada ya siku 3-5 kama hakuna jibu",
+    ],
+    tags:["Email","Professional","Career"],
+  },
+];
+
+// ── Prompt Lab Page ───────────────────────────────────
+function PromptLabPage(){
+  const [copied, setCopied] = useState(null);
+  const [openGuide, setOpenGuide] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
+  const [filter, setFilter] = useState("All");
+
+  const categories = ["All", "📱 Instagram Content", "🤖 AI Business", "📝 Content Creation", "💰 Affiliate Marketing", "🎓 Learning", "📧 Professional"];
+
+  const filtered = filter === "All" ? PROMPT_LAB_DATA : PROMPT_LAB_DATA.filter(p=>p.category===filter);
+
+  const copyPrompt = (id, text) => {
+    navigator.clipboard.writeText(text).then(()=>{
+      setCopied(id);
+      setTimeout(()=>setCopied(null), 2500);
+    });
+  };
+
+  return(
+    <section style={{padding:"26px 0"}}>
+      <W>
+        {/* Lightbox */}
+        {lightbox && (
+          <div onClick={()=>setLightbox(null)} style={{position:"fixed",inset:0,zIndex:800,background:"rgba(0,0,0,.92)",backdropFilter:"blur(20px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+            <div style={{position:"relative",maxWidth:900,width:"100%"}}>
+              <button onClick={()=>setLightbox(null)} style={{position:"absolute",top:-44,right:0,border:"none",background:"rgba(255,255,255,.1)",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700}}>✕ Funga</button>
+              <img src={lightbox} alt="Preview" style={{width:"100%",borderRadius:20,boxShadow:"0 32px 80px rgba(0,0,0,.6)"}}/>
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <div style={{marginBottom:32}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,borderRadius:999,padding:"8px 16px",border:"1px solid rgba(138,43,226,.3)",background:"rgba(138,43,226,.1)",color:"#a78bfa",fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:".12em",marginBottom:16}}>
+            ⚗️ PROMPT & WORKFLOW LAB
+          </div>
+          <h2 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(28px,3vw,44px)",letterSpacing:"-.04em",margin:"0 0 10px"}}>
+            Prompts Bora <span style={{color:"#F5A623"}}>za Kazi</span>
+          </h2>
+          <p style={{color:"rgba(255,255,255,.5)",fontSize:15,lineHeight:1.8,maxWidth:640,margin:0}}>
+            Copy prompts zilizoundwa maalum kwa Watanzania — kwa biashara, content creation, kujifunza na zaidi. Kila prompt ina step-by-step guide.
+          </p>
+        </div>
+
+        {/* Category Filter */}
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:28,overflowX:"auto",paddingBottom:4}}>
+          {categories.map(c=>(
+            <button key={c} onClick={()=>setFilter(c)}
+              style={{border:`1px solid ${filter===c?"rgba(245,166,35,.5)":"rgba(255,255,255,.1)"}`,borderRadius:999,padding:"8px 16px",background:filter===c?"rgba(245,166,35,.15)":"rgba(255,255,255,.04)",color:filter===c?"#F5A623":"rgba(255,255,255,.6)",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",transition:"all .2s"}}>
+              {c}
+            </button>
+          ))}
+        </div>
+
+        {/* Prompt Cards Grid */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:22}}>
+          {filtered.map(item=>(
+            <div key={item.id} style={{borderRadius:22,border:"1px solid rgba(255,255,255,.08)",background:"#141823",overflow:"hidden",transition:"border-color .25s,transform .25s",boxShadow:"0 8px 32px rgba(0,0,0,.2)"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(138,43,226,.35)";e.currentTarget.style.transform="translateY(-4px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,.08)";e.currentTarget.style.transform="";}}>
+
+              {/* Card header */}
+              <div style={{padding:"18px 20px 14px",background:"linear-gradient(135deg,rgba(138,43,226,.12),rgba(6,182,212,.08))",borderBottom:"1px solid rgba(255,255,255,.06)",display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,rgba(138,43,226,.3),rgba(6,182,212,.2))",display:"grid",placeItems:"center",fontSize:24,flexShrink:0}}>{item.emoji}</div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:800,color:"#a78bfa",letterSpacing:".06em",textTransform:"uppercase",marginBottom:3}}>{item.category}</div>
+                  <div style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:16,fontWeight:800,letterSpacing:"-.02em"}}>{item.title}</div>
+                </div>
+              </div>
+
+              {/* Prompt text */}
+              <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+                <div style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,.35)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>📋 Prompt</div>
+                <p style={{color:"rgba(255,255,255,.7)",fontSize:13,lineHeight:1.75,margin:"0 0 14px",fontFamily:"monospace",background:"rgba(255,255,255,.04)",borderRadius:12,padding:"12px 14px",border:"1px solid rgba(255,255,255,.06)"}}>
+                  {item.prompt}
+                </p>
+
+                {/* Copy button */}
+                <button onClick={()=>copyPrompt(item.id, item.prompt)}
+                  style={{width:"100%",height:44,borderRadius:12,border:"none",background:copied===item.id?"linear-gradient(135deg,#10b981,#059669)":"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all .2s"}}>
+                  {copied===item.id ? "✅ Imenakiliwa!" : "📋 Copy Prompt"}
+                </button>
+              </div>
+
+              {/* Tags */}
+              <div style={{padding:"12px 20px",display:"flex",gap:8,flexWrap:"wrap",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+                {item.tags.map((t,i)=>(
+                  <span key={i} style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:99,background:"rgba(138,43,226,.12)",color:"#a78bfa",border:"1px solid rgba(138,43,226,.2)"}}>{t}</span>
+                ))}
+              </div>
+
+              {/* Step-by-step accordion */}
+              <div style={{padding:"0"}}>
+                <button onClick={()=>setOpenGuide(openGuide===item.id?null:item.id)}
+                  style={{width:"100%",padding:"14px 20px",border:"none",background:"transparent",color:"rgba(255,255,255,.6)",fontWeight:800,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",transition:"color .2s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color="#F5A623"}
+                  onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.6)"}>
+                  <span>📖 Jinsi ya Kutumia</span>
+                  <span style={{transition:"transform .25s",transform:openGuide===item.id?"rotate(180deg)":"rotate(0deg)"}}>▼</span>
+                </button>
+                {openGuide===item.id && (
+                  <div style={{padding:"0 20px 20px",borderTop:"1px solid rgba(255,255,255,.06)"}}>
+                    <div style={{display:"grid",gap:8,marginTop:14}}>
+                      {item.guide.map((step,i)=>(
+                        <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                          <span style={{width:24,height:24,borderRadius:8,background:"linear-gradient(135deg,#F5A623,#FFD17C)",display:"grid",placeItems:"center",color:"#111",fontWeight:900,fontSize:11,flexShrink:0,marginTop:1}}>{i+1}</span>
+                          <span style={{fontSize:13,color:"rgba(255,255,255,.65)",lineHeight:1.65}}>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom CTA */}
+        <div style={{marginTop:48,borderRadius:24,border:"1px solid rgba(138,43,226,.2)",background:"linear-gradient(135deg,rgba(138,43,226,.08),rgba(6,182,212,.05))",padding:"32px 28px",display:"flex",gap:24,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:260}}>
+            <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:24,margin:"0 0 8px",letterSpacing:"-.03em"}}>Unataka Prompts Zaidi? 🚀</h3>
+            <p style={{color:"rgba(255,255,255,.5)",fontSize:15,margin:0,lineHeight:1.7}}>Jiunge na STEA community — tunatuma prompts mpya na workflow guides kila wiki bure.</p>
+          </div>
+          <a href="https://wa.me/8619715852043?text=Nataka+prompts+zaidi+za+STEA" target="_blank" rel="noreferrer"
+            style={{display:"inline-flex",alignItems:"center",gap:10,padding:"14px 24px",borderRadius:16,background:"linear-gradient(135deg,#7c3aed,#4f46e5)",color:"#fff",fontWeight:900,fontSize:15,textDecoration:"none",flexShrink:0}}>
+            💬 Jiunge WhatsApp →
+          </a>
+        </div>
+      </W>
+    </section>
+  );
+}
+
 function HomePage({goPage}){
   const { docs: tips, loading: tipsLoading } = useCollection("tips", "createdAt");
   const { docs: updates, loading: updatesLoading } = useCollection("updates", "createdAt");
@@ -728,8 +985,8 @@ function HomePage({goPage}){
   const [art, setArt] = useState(null);
   const [vid, setVid] = useState(null);
 
-  const featuredTips = tips.length >= 3 ? tips.slice(0, 3) : [...tips, ...FALLBACK_TIPS].slice(0, 3);
-  const featuredUpdates = updates.length >= 3 ? updates.slice(0, 3) : [...updates, ...FALLBACK_UPDATES].slice(0, 3);
+  const featuredTips = tips.length > 0 ? tips.slice(0, 3) : FALLBACK_TIPS.slice(0, 3);
+  const featuredUpdates = updates.length > 0 ? updates.slice(0, 3) : FALLBACK_UPDATES.slice(0, 3);
 
   return(<section style={{padding:"22px 0 16px"}}><W>
     {art && <ArticleModal article={art} onClose={() => setArt(null)} />}
@@ -738,9 +995,10 @@ function HomePage({goPage}){
     <div style={{marginBottom:16,borderRadius:20,border:"1px dashed rgba(245,166,35,.22)",background:"rgba(245,166,35,.06)",padding:"13px 18px",textAlign:"center",color:"rgba(255,255,255,.55)",fontSize:14}}>📢 Nafasi ya Google AdSense — matangazo kwa mapato ya STEA</div>
     <div style={{position:"relative",overflow:"hidden",borderRadius:30,border:"1px solid rgba(255,255,255,.07)",padding:"clamp(30px,5vw,62px) clamp(20px,4vw,52px) clamp(36px,5vw,54px)",background:"radial-gradient(circle at 18% 22%,rgba(245,166,35,.15),transparent 22%),radial-gradient(circle at 78% 28%,rgba(91,200,255,.17),transparent 24%),linear-gradient(135deg,#0d1019,#090b12,#0f1320)",boxShadow:"0 28px 80px rgba(0,0,0,.4)"}}>
       <StarCanvas/>
-      <div style={{position:"relative",zIndex:2,maxWidth:760}}>
+      <RoboticHand/>
+      <div style={{position:"relative",zIndex:2,maxWidth:680}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:8,borderRadius:999,padding:"8px 16px",border:"1px solid rgba(245,166,35,.22)",background:"rgba(245,166,35,.08)",color:G,fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:".12em",marginBottom:18}}>🚀 STEA · Learn · Build · Grow · Tanzania</div>
-        <h1 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(46px,7vw,106px)",lineHeight:.88,letterSpacing:"-.07em",margin:"0 0 14px"}}><span style={{display:"block"}}>SwahiliTech</span><span style={{display:"block",background:`linear-gradient(135deg,${G},${G2})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Elite Academy</span></h1>
+        <HeroTitle/>
         <div style={{fontSize:"clamp(15px,2vw,28px)",fontWeight:800,letterSpacing:"-.03em",color:"rgba(255,255,255,.86)",margin:"0 0 6px"}}>Teknolojia kwa Kiswahili 🇹🇿</div>
         <TypedText/>
         <p style={{maxWidth:560,lineHeight:1.9,color:"rgba(255,255,255,.65)",fontSize:15,margin:0}}>STEA inaleta tech tips, updates, deals, electronics, websites za kijanja na kozi za kisasa kwa lugha rahisi ya Kiswahili — platform ya kwanza ya tech kwa Watanzania.</p>
@@ -773,31 +1031,25 @@ function HomePage({goPage}){
     <div style={{marginTop:64}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,gap:16,flexWrap:"wrap"}}>
         <SHead title="Latest" hi="Tech Updates" copy="Habari mpya za tech kutoka kila pembe ya dunia."/>
-        <button onClick={()=>goPage("updates")} style={{border:"none",background:"transparent",color:G,fontWeight:800,fontSize:14,cursor:"pointer",padding:"10px 0"}}>View All News →</button>
+        <button onClick={()=>goPage("habari")} style={{border:"none",background:"transparent",color:G,fontWeight:800,fontSize:14,cursor:"pointer",padding:"10px 0"}}>View All News →</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
         {updatesLoading ? [1,2,3].map(i=><Skeleton key={i}/>) : featuredUpdates.map(item => (
-          item.type === "video" ? (
-            <VideoCard key={item.id} item={item} onPlay={setVid} collection="updates"/>
-          ) : (
-            <TiltCard key={item.id} style={{display:"flex",flexDirection:"column",height:"100%"}}>
-              <div onClick={()=>{if(item.id&&!item.id.startsWith("u"))incrementViews("updates",item.id);setArt(item);}} style={{position:"relative",paddingTop:"56.25%",background:"#1a1d2e",cursor:"pointer",overflow:"hidden"}}>
-                <img src={item.coverImage||"https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?q=80&w=600&auto=format&fit=crop"} alt={item.title} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",transition:"transform .3s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}/>
-                <div style={{position:"absolute",inset:0,background:"linear-gradient(to top, rgba(12,14,22,0.9) 0%, transparent 60%)",pointerEvents:"none"}}/>
-                <div style={{position:"absolute",top:12,left:12,padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...BS.gold,backdropFilter:"blur(4px)"}}>{item.badge}</div>
-                <div style={{position:"absolute",bottom:12,left:12,fontSize:11,color:"rgba(255,255,255,.8)",fontWeight:700,background:"rgba(0,0,0,.5)",padding:"4px 8px",borderRadius:6,backdropFilter:"blur(4px)"}}>{item.category}</div>
+          <TiltCard key={item.id}>
+            <div style={{padding:"16px 18px 10px",background:"linear-gradient(135deg,rgba(245,166,35,.08),rgba(255,255,255,.02)),linear-gradient(180deg,#1e2030,#161820)",display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{fontSize:42,filter:"drop-shadow(0 4px 12px rgba(0,0,0,.5))"}}>{item.thumb}</div>
+              <div><span style={{display:"inline-block",padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...BS.gold}}>{item.badge}</span><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:4}}>{item.category}</div></div>
+            </div>
+            <div style={{padding:18}}>
+              <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:17,margin:"0 0 9px",letterSpacing:"-.03em",lineHeight:1.25}}>{item.title}</h3>
+              <p style={{color:"rgba(255,255,255,.62)",fontSize:14,lineHeight:1.75,margin:"0 0 12px"}}>{item.summary}</p>
+              <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:14}}>
+                <span style={{color:G,fontSize:12,fontWeight:800}}>👁 {fmtViews(item.views)}</span>
+                {item.createdAt && <span style={{color:"#75c5ff",fontSize:12,fontWeight:800}}>{timeAgo(item.createdAt)}</span>}
               </div>
-              <div style={{padding:18,display:"flex",flexDirection:"column",flex:1}}>
-                <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:17,margin:"0 0 9px",letterSpacing:"-.03em",lineHeight:1.25}}>{item.title}</h3>
-                <p style={{color:"rgba(255,255,255,.62)",fontSize:14,lineHeight:1.75,margin:"0 0 12px",flex:1}}>{item.summary}</p>
-                <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:14}}>
-                  <span style={{color:G,fontSize:12,fontWeight:800}}>👁 {fmtViews(item.views)}</span>
-                  {item.createdAt && <span style={{color:"#75c5ff",fontSize:12,fontWeight:800}}>{timeAgo(item.createdAt)}</span>}
-                </div>
-                <GoldBtn onClick={()=>{if(item.id&&!item.id.startsWith("u"))incrementViews("updates",item.id);setArt(item);}} style={{fontSize:13,padding:"9px 16px"}}>📖 Soma Zaidi →</GoldBtn>
-              </div>
-            </TiltCard>
-          )
+              <GoldBtn onClick={()=>{if(item.id&&!item.id.startsWith("u"))incrementViews("updates",item.id);setArt(item);}} style={{fontSize:13,padding:"9px 16px"}}>📖 Soma Zaidi →</GoldBtn>
+            </div>
+          </TiltCard>
         ))}
       </div>
     </div>
@@ -807,123 +1059,6 @@ function HomePage({goPage}){
       <a href="https://wa.me/8619715852043" target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",gap:7,padding:"8px 15px",borderRadius:11,border:"1px solid rgba(37,211,102,.2)",background:"rgba(37,211,102,.07)",color:"#25d366",fontSize:13,fontWeight:700,textDecoration:"none"}}>💬 WhatsApp STEA</a>
     </div>
   </W></section>);
-}
-
-// ════════════════════════════════════════════════════
-// LIVE CHAT WIDGET
-// ════════════════════════════════════════════════════
-function LiveChatWidget({ user, onLogin }) {
-  const [open, setOpen] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [unread, setUnread] = useState(0);
-  const db = getFirebaseDb();
-  const messagesEndRef = useRef(null);
-
-  useEffect(() => {
-    if (!db || !user) return;
-    const unsub = onSnapshot(doc(db, "chats", user.uid), (d) => {
-      if (d.exists()) {
-        setUnread(d.data().unreadUser || 0);
-      }
-    });
-    return () => unsub();
-  }, [db, user]);
-
-  useEffect(() => {
-    if (!db || !user || !open) return;
-    const q = query(collection(db, "chats", user.uid, "messages"), orderBy("createdAt", "asc"));
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-    });
-    if (unread > 0) {
-      updateDoc(doc(db, "chats", user.uid), { unreadUser: 0 }).catch(()=>{});
-    }
-    return () => unsub();
-  }, [db, user, open, unread]);
-
-  const send = async (e) => {
-    e.preventDefault();
-    if (!msg.trim() || !user || !db) return;
-    const text = msg.trim();
-    setMsg("");
-    try {
-      await setDoc(doc(db, "chats", user.uid), {
-        userName: user.displayName || user.email || "User",
-        userPhoto: user.photoURL || "",
-        lastMessage: text,
-        updatedAt: serverTimestamp(),
-        unreadAdmin: increment(1)
-      }, { merge: true });
-      await addDoc(collection(db, "chats", user.uid, "messages"), {
-        text,
-        sender: "user",
-        createdAt: serverTimestamp()
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  return (
-    <div style={{position:"fixed",right:18,bottom:18,zIndex:200}}>
-      <button onClick={() => setOpen(!open)}
-        style={{width:54,height:54,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(135deg,${G},${G2})`,color:"#111",fontSize:24,boxShadow:"0 12px 32px rgba(245,166,35,.4)",border:"none",cursor:"pointer",transition:"transform .3s",position:"relative"}}
-        onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
-        onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
-        <MessageCircle size={28} color="#111" />
-        {unread > 0 && !open && <span style={{position:"absolute",top:0,right:0,background:"#ef4444",color:"#fff",fontSize:10,fontWeight:900,width:20,height:20,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #111"}}>{unread}</span>}
-      </button>
-
-      {open && (
-        <div style={{position:"absolute",bottom:70,right:0,width:"calc(100vw - 36px)",maxWidth:340,height:450,background:"#141823",borderRadius:20,border:"1px solid rgba(255,255,255,.1)",boxShadow:"0 20px 40px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-          <div style={{padding:16,background:`linear-gradient(135deg,${G},${G2})`,color:"#111",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontWeight:900,fontSize:16}}>STEA Live Chat</div>
-              <div style={{fontSize:12,fontWeight:700,opacity:.8}}>Tuko online kukusaidia</div>
-            </div>
-            <button onClick={()=>setOpen(false)} style={{background:"transparent",border:"none",color:"#111",fontSize:20,cursor:"pointer"}}>✕</button>
-          </div>
-          
-          <div style={{background:"#0c0e16",padding:"8px 16px",borderBottom:"1px solid rgba(255,255,255,.05)",display:"flex",justifyContent:"center"}}>
-            <a href="https://wa.me/8619715852043" target="_blank" rel="noreferrer" style={{fontSize:12,color:"#25d366",textDecoration:"none",display:"flex",alignItems:"center",gap:6,fontWeight:700}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              Au tumia WhatsApp
-            </a>
-          </div>
-          
-          <div style={{flex:1,overflowY:"auto",padding:16,display:"flex",flexDirection:"column",gap:12,background:"#0c0e16"}}>
-            {!user ? (
-              <div style={{textAlign:"center",margin:"auto",color:"rgba(255,255,255,.5)"}}>
-                <div style={{fontSize:40,marginBottom:10}}>👋</div>
-                <p style={{marginBottom:16,fontSize:14,lineHeight:1.6}}>Tafadhali login ili kuwasiliana nasi moja kwa moja.</p>
-                <GoldBtn onClick={onLogin} style={{justifyContent:"center",width:"100%"}}>🔑 Login Sasa</GoldBtn>
-              </div>
-            ) : messages.length === 0 ? (
-              <div style={{textAlign:"center",margin:"auto",color:"rgba(255,255,255,.4)",fontSize:14}}>
-                Tuma ujumbe wako hapa, tutakujibu hivi punde!
-              </div>
-            ) : (
-              messages.map(m => (
-                <div key={m.id} style={{alignSelf:m.sender==="user"?"flex-end":"flex-start",maxWidth:"85%",background:m.sender==="user"?"rgba(245,166,35,.15)":"rgba(255,255,255,.08)",border:m.sender==="user"?`1px solid rgba(245,166,35,.3)`:"1px solid rgba(255,255,255,.1)",padding:"10px 14px",borderRadius:16,borderBottomRightRadius:m.sender==="user"?4:16,borderBottomLeftRadius:m.sender==="admin"?4:16,color:m.sender==="user"?G:"#fff",fontSize:14,lineHeight:1.5}}>
-                  {m.text}
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef}/>
-          </div>
-
-          {user && (
-            <form onSubmit={send} style={{padding:12,background:"#141823",borderTop:"1px solid rgba(255,255,255,.05)",display:"flex",gap:8}}>
-              <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Andika ujumbe..." style={{flex:1,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",borderRadius:99,padding:"10px 16px",color:"#fff",fontSize:14,outline:"none"}}/>
-              <button type="submit" disabled={!msg.trim()} style={{width:40,height:40,borderRadius:"50%",background:msg.trim()?`linear-gradient(135deg,${G},${G2})`:"rgba(255,255,255,.1)",color:msg.trim()?"#111":"rgba(255,255,255,.3)",border:"none",cursor:msg.trim()?"pointer":"not-allowed",display:"grid",placeItems:"center",fontSize:16,fontWeight:900}}>↑</button>
-            </form>
-          )}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ════════════════════════════════════════════════════
@@ -937,7 +1072,6 @@ export default function App(){
   const[user,setUser]=useState(null);
   const[authOpen,setAuthOpen]=useState(false);
   const[adminOpen,setAdminOpen]=useState(false);
-  const[profileOpen,setProfileOpen]=useState(false);
   const[mobileOpen,setMobileOpen]=useState(false);
   const[searchOpen,setSearchOpen]=useState(false);
   const[notifOpen,setNotifOpen]=useState(false);
@@ -1006,6 +1140,7 @@ export default function App(){
     courses: <CoursesPage/>,
     duka: <DukaPage/>,
     websites: <WebsitesPage/>,
+    lab: <PromptLabPage/>,
   };
 
   return (
@@ -1051,7 +1186,7 @@ export default function App(){
                     {[{t:"Deal mpya imeingia",b:"Angalia deals zetu mpya."},{t:"Kozi mpya iko active",b:"AI & ChatGPT Mastery iko tayari."},{t:"Habari mpya za tech",b:"Angalia Tech Updates za leo."}].map((n,i)=>(<div key={i} style={{padding:"11px 12px",borderRadius:12,border:"1px solid rgba(255,255,255,.06)",background:"rgba(255,255,255,.04)",marginTop:i>0?8:0}}><div style={{fontWeight:800,marginBottom:3,fontSize:14}}>{n.t}</div><div style={{fontSize:13,color:"rgba(255,255,255,.55)",lineHeight:1.55}}>{n.b}</div></div>))}
                   </div>)}
                 </div>
-                {user?<UserChip user={user} onLogout={handleLogout} onAdmin={()=>setAdminOpen(true)} onProfile={()=>setProfileOpen(true)}/>:<button onClick={()=>setAuthOpen(true)} style={{height:40,padding:"0 16px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${G},${G2})`,color:"#111",fontWeight:900,cursor:"pointer",fontSize:13,whiteSpace:"nowrap",flexShrink:0}}>Ingia</button>}
+                {user?<UserChip user={user} onLogout={handleLogout} onAdmin={()=>setAdminOpen(true)}/>:<button onClick={()=>setAuthOpen(true)} style={{height:40,padding:"0 16px",borderRadius:12,border:"none",background:`linear-gradient(135deg,${G},${G2})`,color:"#111",fontWeight:900,cursor:"pointer",fontSize:13,whiteSpace:"nowrap",flexShrink:0}}>Ingia</button>}
                 <button id="hamburger" onClick={()=>setMobileOpen(v=>!v)} style={{width:40,height:40,borderRadius:12,border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.04)",color:"rgba(255,255,255,.65)",cursor:"pointer",fontSize:18,display:"grid",placeItems:"center",flexShrink:0}}>{mobileOpen?"✕":"☰"}</button>
               </div>
 
@@ -1074,7 +1209,6 @@ export default function App(){
           </div>)}
 
           {authOpen&&<AuthModal onClose={()=>setAuthOpen(false)} onUser={(u)=>{setUser(u);setAuthOpen(false);}}/>}
-          {profileOpen&&user&&<UserProfileModal user={user} onClose={()=>setProfileOpen(false)} onUpdate={setUser}/>}
 
           <main>{PAGES[page]||PAGES.home}</main>
 
@@ -1101,7 +1235,13 @@ export default function App(){
 
           {showTop&&<button onClick={()=>window.scrollTo({top:0,behavior:"smooth"})} style={{position:"fixed",right:18,bottom:82,zIndex:200,width:46,height:46,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",border:"1px solid rgba(245,166,35,.3)",background:"rgba(12,14,24,.92)",color:G,cursor:"pointer",fontSize:20,boxShadow:"0 8px 24px rgba(0,0,0,.35)"}}>↑</button>}
           
-          <LiveChatWidget user={user} onLogin={() => setAuthOpen(true)} />
+          {/* Floating WhatsApp Button */}
+          <a href="https://wa.me/8619715852043?text=Habari+STEA,+nina+swali..." target="_blank" rel="noreferrer" 
+            style={{position:"fixed",right:18,bottom:18,zIndex:200,width:54,height:54,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:"#25D366",color:"#fff",fontSize:28,boxShadow:"0 12px 32px rgba(37,211,102,.4)",transition:"transform .3s"}}
+            onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1) rotate(8deg)"}
+            onMouseLeave={e=>e.currentTarget.style.transform="scale(1) rotate(0deg)"}>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.886 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          </a>
         </div>
       )}
     </ErrorBoundary>
