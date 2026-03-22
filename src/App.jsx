@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, Component } from "react";
+import React, { useState, useEffect, useRef, useCallback, Component } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AlertCircle, Copy, Download, Maximize2, Check, Send, ChevronRight, Zap, BookOpen, Star, Users, Clock, Award, HelpCircle, ShieldCheck, MessageCircle, X, Mail } from "lucide-react";
 import { jsPDF } from "jspdf";
@@ -11,6 +11,33 @@ import { initFirebase, getFirebaseAuth, getFirebaseDb,
 } from "./firebase.js";
 import { useCollection, incrementViews, timeAgo, fmtViews } from "./hooks/useFirestore.js";
 import AdminPanel from "./admin/AdminPanel.jsx";
+// ── SafeImg: never shows broken image icon, never changes stored URLs ────
+function SafeImg({ src, alt, style = {}, className = "" }) {
+  const [errored, setErrored] = React.useState(false);
+  if (!src || errored) {
+    return (
+      <div
+        className="img-placeholder"
+        style={{ width: "100%", height: "100%", ...style }}
+        aria-label={alt}
+      />
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || ""}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      className={className}
+      style={style}
+      onError={() => setErrored(true)}
+    />
+  );
+}
+
+
 
 // ── Error Boundary ───────────────────────────────────────
 class ErrorBoundary extends Component {
@@ -309,14 +336,10 @@ function TiltCard({children,style={}}){
 function Thumb({bg,iconUrl,name,domain,badge,bt,imageUrl,id}){
   return(<div style={{position:"relative",aspectRatio:"16/9",background:"rgba(255,255,255,.03)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,padding:"36px 20px 20px",overflow:"hidden",borderBottom:"1px solid rgba(255,255,255,.07)"}}>
     {imageUrl ? (
-      <img 
-        src={imageUrl} 
-        alt={name} 
-        referrerPolicy="no-referrer"
+      <SafeImg
+        src={imageUrl}
+        alt={name}
         style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}
-        onError={(e) => {
-          e.target.src = `https://picsum.photos/seed/stea-${id || name}/800/450`;
-        }}
       />
     ) : (
       <>
@@ -358,7 +381,7 @@ function SHead({title,hi,copy}){
   return(<div style={{marginBottom:24}}><h2 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(28px,3vw,40px)",letterSpacing:"-.04em",margin:"0 0 8px"}}>{title} <span style={{color:G}}>{hi}</span></h2>{copy&&<p style={{margin:0,color:"rgba(255,255,255,.45)",lineHeight:1.8,maxWidth:680,fontSize:15}}>{copy}</p>}</div>);
 }
 
-const W=({children})=><div style={{maxWidth:1180,margin:"0 auto",padding:"0 14px"}}>{children}</div>;
+const W=({children})=><div style={{maxWidth:1180,margin:"0 auto",padding:"0 clamp(12px,4vw,20px)",boxSizing:"border-box"}}>{children}</div>;
 
 // ── Skeleton loader ───────────────────────────────────
 function Skeleton({ type = "card" }) {
@@ -389,15 +412,7 @@ function ArticleModal({article,onClose}){
       <button onClick={onClose} style={{position:"sticky",top:16,left:"calc(100% - 54px)",display:"block",zIndex:10,width:38,height:38,borderRadius:12,border:"1px solid rgba(255,255,255,.1)",background:"rgba(12,14,22,.8)",color:"#fff",cursor:"pointer",fontSize:18,marginLeft:"auto",marginRight:16,backdropFilter:"blur(10px)"}}>✕</button>
       {article.imageUrl && (
         <div style={{width:"100%",aspectRatio:"16/9",overflow:"hidden",borderBottom:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.03)"}}>
-          <img 
-            src={article.imageUrl} 
-            alt={article.title} 
-            referrerPolicy="no-referrer" 
-            style={{width:"100%",height:"100%",objectFit:"cover"}}
-            onError={(e) => {
-              e.target.src = `https://picsum.photos/seed/stea-${article.id}/1200/675`;
-            }}
-          />
+          <SafeImg src={article.imageUrl} alt={article.title} style={{width:"100%",height:"100%",objectFit:"cover"}} />
         </div>
       )}
       <div style={{padding:article.imageUrl?"24px 32px 36px":"0 32px 36px"}}>
@@ -445,12 +460,12 @@ function ArticleCard({item,onRead,collection:col}){
       {item.imageUrl ? (
         <img 
           src={item.imageUrl} 
-          alt={item.title} 
+          alt={item.title}
+          loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer" 
           style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}
-          onError={(e) => {
-            e.target.src = `https://picsum.photos/seed/stea-${item.id}/800/450`;
-          }}
+          onError={(e) => { e.target.style.display='none'; }}
         />
       ) : (
         <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"flex-start",width:"100%",padding:"20px"}}>
@@ -484,12 +499,12 @@ function VideoCard({item,onPlay,collection:col}){
       {item.imageUrl ? (
         <img 
           src={item.imageUrl} 
-          alt={item.title} 
+          alt={item.title}
+          loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer" 
           style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}
-          onError={(e) => {
-            e.target.src = `https://picsum.photos/seed/stea-${item.id}/800/450`;
-          }}
+          onError={(e) => { e.target.style.display='none'; }}
         />
       ) : (
         <div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(245,166,35,.12),rgba(255,255,255,.02)),linear-gradient(180deg,#1e2030,#161820)"}}/>
@@ -651,12 +666,12 @@ function TipsPage(){
     {vid&&<VideoModal   video={vid}   onClose={()=>setVid(null)}/>}
     <SHead title="Tech" hi="Tips" copy="Articles na videos za Android, iPhone, PC na AI kwa matumizi ya kila siku."/>
     <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,letterSpacing:"-.03em",margin:"0 0 16px"}}>📝 Articles <span style={{color:G}}>& Guides</span></h3>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22,marginBottom:40}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,22px)",marginBottom:40}}>
       {loading?[1,2,3].map(i=><Skeleton key={i}/>):articles.map(item=><ArticleCard key={item.id} item={item} onRead={setArt} collection="tips"/>)}
     </div>
     {videos.length>0&&<>
       <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,letterSpacing:"-.03em",margin:"0 0 16px"}}>Videos <span style={{color:G}}>za Tech</span></h3>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,22px)"}}>
         {videos.map(item=><VideoCard key={item.id} item={item} onPlay={setVid} collection="tips"/>)}
       </div>
     </>}
@@ -676,12 +691,12 @@ function UpdatesPage(){
     {vid&&<VideoModal   video={vid}   onClose={()=>setVid(null)}/>}
     <SHead title="Latest Tech Updates" hi="Around The World" copy="Habari mpya za AI, Android, Africa Tech na trends za tech world."/>
     <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,letterSpacing:"-.03em",margin:"0 0 16px"}}>📰 Tech <span style={{color:G}}>News</span></h3>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22,marginBottom:40}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,22px)",marginBottom:40}}>
       {loading?[1,2,3].map(i=><Skeleton key={i}/>):articles.map(item=>(
         <TiltCard key={item.id}>
           <div style={{padding:item.imageUrl?0:"16px 18px 10px",background:"linear-gradient(135deg,rgba(245,166,35,.08),rgba(255,255,255,.02)),linear-gradient(180deg,#1e2030,#161820)",display:"flex",gap:12,alignItems:"flex-start",aspectRatio:item.imageUrl?"16/9":"auto",minHeight:item.imageUrl?0:90,overflow:"hidden",position:"relative"}}>
             {item.imageUrl ? (
-              <img src={item.imageUrl} alt={item.title} referrerPolicy="no-referrer" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}/>
+              <img loading="lazy" decoding="async" src={item.imageUrl} alt={item.title} referrerPolicy="no-referrer" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}/>
             ) : (
               <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"flex-start",width:"100%",padding:"20px"}}>
                 <span style={{display:"inline-block",padding:"4px 10px",borderRadius:999,fontSize:11,fontWeight:800,...BS.gold}}>{item.badge}</span>
@@ -705,7 +720,7 @@ function UpdatesPage(){
     </div>
     {videos.length>0&&<>
       <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:20,letterSpacing:"-.03em",margin:"0 0 16px"}}>Tech <span style={{color:G}}>Videos</span></h3>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,22px)"}}>
         {videos.map(item=><VideoCard key={item.id} item={item} onPlay={setVid} collection="updates"/>)}
       </div>
     </>}
@@ -718,7 +733,7 @@ function DealsPage(){
 
   return(<section style={{padding:"26px 0"}}><W>
     <SHead title="Premium" hi="Deals" copy="Discounts, promo codes na referral deals — napata commission, wewe unapata bei nzuri."/>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,24px)"}}>
       {loading?[1,2,3].map(i=><Skeleton key={i}/>):deals.map((d,i)=>(
         <TiltCard key={d.id||i}>
           <Thumb bg={d.bg} name={d.name} domain={d.domain} badge={d.badge} bt={d.bt} imageUrl={d.imageUrl}/>
@@ -900,7 +915,7 @@ function CourseDetailPage({ course: c, goPage }) {
         <div className="course-hero" style={{ display: "grid", gridTemplateColumns: "clamp(300px, 40%, 500px) 1fr", gap: 60, marginBottom: 80, alignItems: "start" }}>
           {/* Left: Image */}
           <div style={{ position: "relative", borderRadius: 32, overflow: "hidden", border: "1px solid rgba(255,255,255,.1)", boxShadow: "0 20px 50px rgba(0,0,0,.5)" }}>
-            <img src={c.imageUrl || `https://picsum.photos/seed/${c.id}/800/1200`} alt={c.title} style={{ width: "100%", display: "block" }} referrerPolicy="no-referrer" />
+            <SafeImg src={c.imageUrl} alt={c.title} style={{ width: "100%", display: "block" }} />
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(5,6,10,.8), transparent)" }} />
             {c.badge && (
               <div style={{ position: "absolute", top: 24, left: 24, background: G, color: "#000", padding: "8px 16px", borderRadius: 12, fontSize: 13, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -1119,17 +1134,17 @@ function DukaPage(){
 
   return(<section style={{padding:"26px 0"}}><W>
     <SHead title="Electronics" hi="Duka" copy="Curated affiliate products na verified deals kwa buyers wa Tanzania."/>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,22px)"}}>
       {loading ? [1,2,3].map(i=><Skeleton key={i}/>) : products.map((p,i)=>(<TiltCard key={p.id||i}>
         <div style={{aspectRatio:"16/9",position:"relative",background:"rgba(255,255,255,.03)",overflow:"hidden"}}>
           <img 
-            src={p.imageUrl || `https://picsum.photos/seed/duka-${p.id||i}/800/450`} 
-            alt={p.name} 
+            src={p.imageUrl} 
+            alt={p.name}
+            loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
             style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}
-            onError={(e) => {
-              e.target.src = `https://picsum.photos/seed/duka-${p.id||i}/800/450`;
-            }}
+            onError={(e) => { e.target.style.display='none'; }}
           />
           {p.badge && <div style={{position:"absolute",top:14,left:14,borderRadius:999,padding:"6px 11px",border:"1px solid rgba(255,255,255,.08)",background:"rgba(14,14,22,.75)",color:G,fontSize:11,fontWeight:800}}>{p.badge}</div>}
         </div>
@@ -1153,7 +1168,7 @@ function WebsitesPage(){
 
   return(<section style={{padding:"26px 0"}}><W>
     <SHead title="Websites za" hi="Kijanja" copy="Sites zinazookoa pesa, muda na nguvu — nimezijaribu zote."/>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,22px)"}}>
       {loading ? [1,2,3].map(i=><Skeleton key={i}/>) : websites.map((w,i)=>(<TiltCard key={w.id||i}>
         <Thumb bg={w.bg} iconUrl={w.iconUrl} name={w.name} domain={w.meta} imageUrl={w.imageUrl} id={w.id}/>
         <div style={{padding:18,display:"flex",gap:13,alignItems:"flex-start"}}>
@@ -1249,18 +1264,18 @@ function PromptModal({ prompt: p, onClose }) {
       <motion.div 
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        style={{ width: "min(900px, 100%)", borderRadius: 32, border: "1px solid rgba(255,255,255,.12)", background: "rgba(15,18,28,.98)", boxShadow: "0 40px 100px rgba(0,0,0,.6)", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: p.imageUrl ? "row" : "column" }}
+        style={{ width: "min(900px, 100%)", borderRadius: 32, border: "1px solid rgba(255,255,255,.12)", background: "rgba(15,18,28,.98)", boxShadow: "0 40px 100px rgba(0,0,0,.6)", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
       >
         {p.imageUrl && (
           <div style={{ width: "clamp(200px, 35%, 320px)", flexShrink: 0, background: "rgba(255,255,255,.05)", position: "relative" }}>
             <img 
-              src={p.imageUrl} 
+              src={p.imageUrl}
+              loading="lazy"
+              decoding="async"
               style={{ width: "100%", height: "100%", objectFit: "cover" }} 
               referrerPolicy="no-referrer" 
-              alt={p.title} 
-              onError={(e) => {
-                e.target.src = `https://picsum.photos/seed/stea-modal-${p.id}/800/1200`;
-              }}
+              alt={p.title}
+              onError={(e) => { e.target.style.display='none'; }}
             />
           </div>
         )}
@@ -1340,20 +1355,16 @@ function PromptLabPage() {
         {sel && <PromptModal prompt={sel} onClose={() => setSel(null)} />}
         <SHead title="Prompt" hi="Lab" copy="Maktaba ya AI Prompts bora zilizojaribiwa kwa Kiswahili. Copy na u-paste kwenye ChatGPT, Gemini au Claude." />
         
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,280px),1fr))", gap: "clamp(12px,3vw,24px)" }}>
           {loading ? [1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} type="prompt" />) : prompts.map(p => (
             <TiltCard key={p.id} style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              <div style={{ position: "relative", aspectRatio: "9/16", background: "rgba(255,255,255,.03)", borderBottom: "1px solid rgba(255,255,255,.07)", overflow: "hidden" }}>
-                <img 
-                  src={p.imageUrl || `https://picsum.photos/seed/${p.id}/800/1200`} 
-                  alt={p.title} 
-                  referrerPolicy="no-referrer"
+              <div className="prompt-card-img">
+                <SafeImg
+                  src={p.imageUrl}
+                  alt={p.title}
                   style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
-                  onError={(e) => {
-                    e.target.src = `https://picsum.photos/seed/stea-${p.id}/800/1200`;
-                  }}
                 />
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent, rgba(0,0,0,.4))" }} />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent, rgba(0,0,0,.4))", pointerEvents: "none" }} />
                 <div style={{ position: "absolute", top: 14, left: 14, zIndex: 2 }}>
                   <span style={{ padding: "5px 12px", borderRadius: 99, fontSize: 10, fontWeight: 900, ...BS.gold, textTransform: "uppercase", letterSpacing: 1 }}>{p.category}</span>
                 </div>
@@ -1581,7 +1592,7 @@ function SupportLauncher() {
   };
 
   return (
-    <div style={{ position: "fixed", bottom: 30, right: 30, zIndex: 1000 }}>
+    <div style={{ position: "fixed", bottom: 20, right: 16, zIndex: 1000 }}>
       <AnimatePresence>
         {showTooltip && !isOpen && (
           <motion.div
@@ -1927,7 +1938,7 @@ const CourseCard = ({ item, goPage }) => {
     <TiltCard style={{ overflow: "hidden" }}>
       <div onClick={() => goPage && goPage("course-detail", item)} style={{ cursor: "pointer" }}>
         <div style={{ position: "relative", aspectRatio: "16/9", overflow: "hidden" }}>
-          <img src={item.imageUrl || `https://picsum.photos/seed/${item.id}/800/450`} alt={item.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} referrerPolicy="no-referrer" />
+          <SafeImg src={item.imageUrl} alt={item.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           {item.badge && (
             <div style={{ position: "absolute", top: 12, left: 12, background: G, color: "#000", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: 1, zIndex: 2 }}>
               {item.badge}
@@ -2001,7 +2012,7 @@ function HomePage({goPage}){
     {vid && <VideoModal video={vid} onClose={() => setVid(null)} />}
 
     <div style={{marginBottom:16,borderRadius:20,border:"1px dashed rgba(245,166,35,.22)",background:"rgba(245,166,35,.06)",padding:"13px 18px",textAlign:"center",color:"rgba(255,255,255,.55)",fontSize:14}}>📢 Nafasi ya Google AdSense — matangazo kwa mapato ya STEA</div>
-    <div style={{position:"relative",overflow:"hidden",borderRadius:30,border:"1px solid rgba(255,255,255,.07)",padding:"clamp(30px,5vw,62px) clamp(20px,4vw,52px) clamp(36px,5vw,54px)",background:"radial-gradient(circle at 18% 22%,rgba(245,166,35,.12),transparent 30%),radial-gradient(circle at 78% 28%,rgba(86,183,255,.12),transparent 35%),radial-gradient(circle at 50% 50%,rgba(147,51,234,.08),transparent 50%),linear-gradient(135deg,#05060a,#090b12,#05060a)",boxShadow:"0 28px 80px rgba(0,0,0,.6)"}}>
+    <div style={{position:"relative",overflow:"hidden",borderRadius:30,border:"1px solid rgba(255,255,255,.07)",padding:"clamp(24px,5vw,62px) clamp(14px,4vw,52px) clamp(28px,5vw,54px)",background:"radial-gradient(circle at 18% 22%,rgba(245,166,35,.12),transparent 30%),radial-gradient(circle at 78% 28%,rgba(86,183,255,.12),transparent 35%),radial-gradient(circle at 50% 50%,rgba(147,51,234,.08),transparent 50%),linear-gradient(135deg,#05060a,#090b12,#05060a)",boxShadow:"0 28px 80px rgba(0,0,0,.6)"}}>
       <StarCanvas/>
       <EarthHero/>
       
@@ -2021,7 +2032,7 @@ function HomePage({goPage}){
 
       <div style={{position:"relative",zIndex:2,maxWidth:760}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:8,borderRadius:999,padding:"8px 16px",border:"1px solid rgba(245,166,35,.22)",background:"rgba(245,166,35,.08)",color:G,fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:".12em",marginBottom:18}}>🚀 STEA · Learn · Build · Grow · Tanzania</div>
-        <h1 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(46px,7vw,106px)",lineHeight:.88,letterSpacing:"-.07em",margin:"0 0 14px"}}><span style={{display:"block"}}>SwahiliTech</span><span style={{display:"block",background:`linear-gradient(135deg,${G},${G2})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Elite Academy</span></h1>
+        <h1 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(38px,8vw,106px)",lineHeight:.9,letterSpacing:"-.05em",margin:"0 0 14px"}}><span style={{display:"block"}}>SwahiliTech</span><span style={{display:"block",background:`linear-gradient(135deg,${G},${G2})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Elite Academy</span></h1>
         <div style={{fontSize:"clamp(15px,2vw,28px)",fontWeight:800,letterSpacing:"-.03em",color:"rgba(255,255,255,.86)",margin:"0 0 6px"}}>Teknolojia kwa Kiswahili 🇹🇿</div>
         <TypedText/>
         <p style={{maxWidth:560,lineHeight:1.9,color:"rgba(255,255,255,.65)",fontSize:16,margin:"0 0 10px", fontWeight: 500}}>STEA inaleta tech tips, updates, deals, electronics, na kozi za kisasa kwa lugha rahisi ya Kiswahili — platform ya kwanza ya tech kwa Watanzania.</p>
@@ -2030,7 +2041,7 @@ function HomePage({goPage}){
           <PushBtn onClick={()=>goPage("courses")}>🎓 Chagua Kozi Yako →</PushBtn>
           <button onClick={()=>goPage("tips")} style={{border:"1px solid rgba(255,255,255,.14)",cursor:"pointer",borderRadius:18,padding:"14px 26px",fontWeight:900,fontSize:15,color:"#fff",background:"rgba(255,255,255,.05)", transition: "0.3s"}} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}>⚡ Explore Content</button>
         </div>
-        <div style={{marginTop:38,display:"grid",gridTemplateColumns:"repeat(4,1fr)",borderRadius:24,overflow:"hidden",border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.05)",backdropFilter:"blur(10px)",maxWidth:620}}>
+        <div style={{marginTop:28,display:"grid",gridTemplateColumns:"repeat(4,1fr)",borderRadius:24,overflow:"hidden",border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.05)",backdropFilter:"blur(10px)",maxWidth:620}}>
           {[{v:<Counter target={200}/>,l:"Monthly Readers"},{v:<Counter target={1200}/>,l:"Articles"},{v:<Counter target={45}/>,l:"TZ Creators"},{v:"24/7",l:"Live Updates"}].map((st,i)=>(<div key={i} style={{padding:"18px 10px",textAlign:"center",borderRight:i<3?"1px solid rgba(255,255,255,.08)":"none"}}><div style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:"clamp(20px,2.6vw,32px)",color:G,marginBottom:5,fontWeight:800}}>{st.v}</div><div style={{fontSize:11,color:"rgba(255,255,255,.42)",fontWeight:700,lineHeight:1.3}}>{st.l}</div></div>))}
         </div>
       </div>
@@ -2048,13 +2059,13 @@ function HomePage({goPage}){
         <TiltCard>
           <div style={{position:"relative", aspectRatio:"16/9", background: "rgba(255,255,255,.03)", borderBottom:"1px solid rgba(255,255,255,.07)", overflow: "hidden"}}>
             <img 
-              src={featuredPrompt.imageUrl || `https://picsum.photos/seed/${featuredPrompt.id}/800/450`} 
-              alt={featuredPrompt.title} 
+              src={featuredPrompt.imageUrl}
+              alt={featuredPrompt.title}
+              loading="lazy"
+              decoding="async"
               referrerPolicy="no-referrer"
               style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
-              onError={(e) => {
-                e.target.src = `https://picsum.photos/seed/stea-${featuredPrompt.id}/800/450`;
-              }}
+              onError={(e) => { e.target.style.display='none'; }}
             />
             <div style={{position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent, rgba(0,0,0,.4))"}}/>
             <div style={{position:"absolute", top:14, left:14, zIndex:2}}>
@@ -2078,7 +2089,7 @@ function HomePage({goPage}){
         <SHead title="Featured" hi="Tech Tips" copy="Maujanja ya Android, AI na PC kwa Kiswahili."/>
         <button onClick={()=>goPage("tips")} style={{border:"none",background:"transparent",color:G,fontWeight:800,fontSize:14,cursor:"pointer",padding:"10px 0"}}>View All Tips →</button>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,22px)"}}>
         {tipsLoading ? [1,2,3].map(i=><Skeleton key={i}/>) : featuredTips.map(item => (
           item.type === "video" ? 
             <VideoCard key={item.id} item={item} onPlay={setVid} collection="tips"/> :
@@ -2098,8 +2109,8 @@ function HomePage({goPage}){
         </div>
         <div style={{order:window.innerWidth<800?1:2}}>
           <TiltCard>
-            <div style={{display:"flex",height:280,overflow:"hidden"}}>
-              <div style={{width:"40%"}}><img src={featuredDeal.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} referrerPolicy="no-referrer"/></div>
+            <div style={{display:"flex",minHeight:180,maxHeight:280,overflow:"hidden",flexWrap:"wrap"}}>
+              <div style={{width:"40%"}}><img loading="lazy" decoding="async" src={featuredDeal.imageUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} referrerPolicy="no-referrer"/></div>
               <div style={{width:"60%",padding:24,display:"flex",flexDirection:"column"}}>
                 <span style={{color:G,fontWeight:900,fontSize:10,textTransform:"uppercase"}}>{featuredDeal.badge}</span>
                 <h3 style={{fontSize:20,margin:"8px 0 12px"}}>{featuredDeal.title}</h3>
@@ -2118,7 +2129,7 @@ function HomePage({goPage}){
         <SHead title="Latest" hi="Tech Updates" copy="Habari mpya za tech kutoka kila pembe ya dunia."/>
         <button onClick={()=>goPage("habari")} style={{border:"none",background:"transparent",color:G,fontWeight:800,fontSize:14,cursor:"pointer",padding:"10px 0"}}>View All News →</button>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:22}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,22px)"}}>
         {updatesLoading ? [1,2,3].map(i=><Skeleton key={i}/>) : featuredUpdates.map(item => (
           <ArticleCard key={item.id} item={item} onRead={setArt} collection="updates"/>
         ))}
@@ -2130,7 +2141,7 @@ function HomePage({goPage}){
         <SHead title="Premium" hi="Courses" copy="Jifunze stadi za kisasa kuanzia mwanzo hadi ubingwa."/>
         <button onClick={()=>goPage("courses")} style={{border:"none",background:"transparent",color:G,fontWeight:800,fontSize:14,cursor:"pointer",padding:"10px 0"}}>View All Courses →</button>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:24}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,300px),1fr))",gap:"clamp(12px,3vw,24px)"}}>
         {featuredCourses.map(c => <CourseCard key={c.id} item={c} goPage={goPage}/>)}
       </div>
     </div>
@@ -2252,8 +2263,64 @@ export default function App(){
           <AdminPanel user={user} onBack={()=>setAdminOpen(false)}/>
         </div>
       ) : (
-        <div style={{fontFamily:"'Instrument Sans',system-ui,sans-serif",color:"#fff",minHeight:"100vh",overflowX:"hidden",background:"radial-gradient(circle at 14% 12%,rgba(245,166,35,.12),transparent 18%),radial-gradient(circle at 84% 22%,rgba(86,183,255,.12),transparent 20%),linear-gradient(180deg,#05060a,#080a11)"}}>
-          <style>{`@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&family=Instrument+Sans:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}@keyframes blink{50%{opacity:0}}@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes logoPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.45)}50%{box-shadow:0 0 0 18px rgba(245,166,35,0)}}@keyframes loadBar{0%{width:0%}60%{width:65%}100%{width:100%}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(245,166,35,.28);border-radius:3px}input::placeholder{color:rgba(255,255,255,.28)}a{text-decoration:none;color:inherit}nav::-webkit-scrollbar{display:none}@media(max-width:900px){#desktopNav{display:none!important}}@media(min-width:901px){#hamburger{display:none!important}}`}</style>
+        <div style={{fontFamily:"'Instrument Sans',system-ui,sans-serif",color:"#fff",minHeight:"100vh",overflowX:"hidden",WebkitOverflowScrolling:"touch",background:"radial-gradient(circle at 14% 12%,rgba(245,166,35,.12),transparent 18%),radial-gradient(circle at 84% 22%,rgba(86,183,255,.12),transparent 20%),linear-gradient(180deg,#05060a,#080a11)"}}>
+          <style>{`
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..60,800&family=Instrument+Sans:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+input::placeholder{color:rgba(255,255,255,.28)}
+a{text-decoration:none;color:inherit}
+nav::-webkit-scrollbar{display:none}
+
+/* Mobile-first layout */
+.W{padding:0 14px}
+@media(max-width:480px){
+  .W{padding:0 12px}
+  section{padding:16px 0 28px!important}
+}
+
+/* Grid: 1 col mobile → 2 → 3 */
+.auto-grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:480px){.auto-grid{grid-template-columns:repeat(2,1fr);gap:16px}}
+@media(min-width:900px){.auto-grid{grid-template-columns:repeat(3,1fr);gap:22px}}
+
+/* Course hero */
+@media(max-width:900px){
+  .course-hero{grid-template-columns:1fr!important;gap:24px!important}
+  .course-grid,.testimonial-grid{grid-template-columns:1fr!important}
+}
+
+/* Mobile typography boost */
+@media(max-width:480px){
+  .hero-title{font-size:clamp(42px,11vw,72px)!important;line-height:.9!important}
+}
+
+/* Fix iOS Safari overscroll */
+body{overscroll-behavior:none}
+
+/* Ticker animation */
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* Loading animations */
+@keyframes logoPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.45)}50%{box-shadow:0 0 0 18px rgba(245,166,35,0)}}
+@keyframes loadBar{0%{width:0%}60%{width:65%}100%{width:100%}}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* Prompt Lab card image must be horizontal */
+.prompt-card-img{position:relative;aspect-ratio:16/9;background:rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden}
+
+/* Auth modal */
+@media(max-width:640px){.auth-grid{grid-template-columns:1fr!important}.auth-grid > div:last-child{display:none!important}}
+
+/* FAQ */
+.faq-item[open]{background:rgba(255,255,255,.04)!important;border-color:rgba(245,166,35,.33)!important}
+.faq-item[open] .chevron{transform:rotate(90deg);color:#F5A623}
+.faq-item summary::-webkit-details-marker{display:none}
+@media(max-width:640px){.faq-item summary{padding:20px;font-size:16px}.faq-item div{padding:0 20px 20px;font-size:15px}}
+
+/* Nav */
+@media(max-width:900px){#desktopNav{display:none!important}}
+@media(min-width:901px){#hamburger{display:none!important}}
+`}</style>
 
           <LoadingScreen done={loaded}/>
           
@@ -2309,7 +2376,7 @@ export default function App(){
           <div style={{position:"fixed",left:0,top:0,height:3,width:`${scrollPct}%`,zIndex:400,background:`linear-gradient(90deg,${G},${G2})`,boxShadow:`0 0 12px rgba(245,166,35,.6)`,transition:"width .1s",pointerEvents:"none"}}/>
 
           {/* Ticker */}
-          <div style={{background:`linear-gradient(90deg,${G},${G2})`,color:"#111",padding:"9px 0",overflow:"hidden",whiteSpace:"nowrap",fontSize:13,fontWeight:800,userSelect:"none"}}>
+          <div style={{background:`linear-gradient(90deg,${G},${G2})`,color:"#111",padding:"8px 0",overflow:"hidden",whiteSpace:"nowrap",fontSize:12,fontWeight:800,userSelect:"none",flexShrink:0}}>
             <div style={{display:"inline-flex",gap:32,animation:"ticker 26s linear infinite"}}>
               {["🔥 Tech Tips mpya kila siku","🤖 AI & ChatGPT kwa Kiswahili","📱 Android, iPhone na PC Hacks","🛍️ Deals za Tanzania","🎓 Kozi za STEA kwa M-Pesa","⚡ SwahiliTech Elite Academy — STEA","🔥 Tech Tips mpya kila siku","🤖 AI & ChatGPT kwa Kiswahili","📱 Android, iPhone na PC Hacks","🛍️ Deals za Tanzania","🎓 Kozi za STEA kwa M-Pesa","⚡ SwahiliTech Elite Academy — STEA"].map((t,i)=><span key={i}>{t}</span>)}
             </div>
@@ -2408,7 +2475,7 @@ export default function App(){
           {showTop && (
             <button 
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} 
-              style={{ position: "fixed", right: 34, bottom: 120, zIndex: 200, width: 50, height: 50, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(245,166,35,.3)", background: "rgba(12,14,24,.92)", color: G, cursor: "pointer", fontSize: 20, boxShadow: "0 8px 24px rgba(0,0,0,.35)" }}
+              style={{ position: "fixed", right: 16, bottom: 90, zIndex: 200, width: 50, height: 50, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(245,166,35,.3)", background: "rgba(12,14,24,.92)", color: G, cursor: "pointer", fontSize: 20, boxShadow: "0 8px 24px rgba(0,0,0,.35)" }}
             >
               ↑
             </button>
