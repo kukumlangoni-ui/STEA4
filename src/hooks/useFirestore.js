@@ -1,26 +1,37 @@
 import { useState, useEffect } from "react";
-import { getFirebaseDb, collection, onSnapshot, query, orderBy, doc, updateDoc, increment, handleFirestoreError, OperationType } from "../firebase.js";
+import { getFirebaseDb, collection, onSnapshot, query, orderBy, limit, doc, updateDoc, increment, handleFirestoreError, OperationType } from "../firebase.js";
 
-export function useCollection(colName, orderField = "createdAt") {
+export function useCollection(colName, orderField = "createdAt", limitCount = 50) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const db = getFirebaseDb();
     if (!db) return;
-    const q = query(collection(db, colName), orderBy(orderField, "desc"));
+
+    // Timeout to prevent infinite loading state if network is slow
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 6000);
+
+    const q = query(collection(db, colName), orderBy(orderField, "desc"), limit(limitCount));
     const unsub = onSnapshot(q, (snap) => {
+      clearTimeout(timer);
       setDocs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     }, (err) => {
+      clearTimeout(timer);
       console.error(`Error fetching ${colName}:`, err);
       if (err.message.includes("insufficient permissions")) {
         handleFirestoreError(err, OperationType.LIST, colName);
       }
       setLoading(false);
     });
-    return unsub;
-  }, [colName, orderField]);
+    return () => {
+      clearTimeout(timer);
+      unsub();
+    };
+  }, [colName, orderField, limitCount]);
 
   return { docs, loading };
 }
