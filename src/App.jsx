@@ -167,21 +167,17 @@ function LoadingScreen({done}){
   const[hide,setHide]=useState(false);
   useEffect(()=>{if(done)setTimeout(()=>setHide(true),700);},[done]);
   if(hide)return null;
-  return(<div style={{position:"fixed",inset:0,zIndex:9999,background:"#05060a",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"opacity .7s",opacity:done?0:1}}>
-    {/* Glow backdrop behind logo */}
-    <div style={{position:"relative",marginBottom:32,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <div style={{position:"absolute",width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle,rgba(245,166,35,0.22) 0%,rgba(86,130,255,0.13) 50%,transparent 75%)",filter:"blur(28px)",animation:"steaGlow 2.4s ease-in-out infinite"}}/>
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:9999,background:"#050816",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",transition:"opacity .7s",opacity:done?0:1}}>
       <img
-        src="/stea-logo-animated.jpg"
-        alt="STEA"
-        style={{width:200,height:"auto",objectFit:"contain",position:"relative",zIndex:2,animation:"steaEntrance 0.6s cubic-bezier(0.34,1.56,0.64,1) both, steaPulse 2.4s ease-in-out 0.6s infinite",borderRadius:16,maxWidth:"60vw"}}
+        src="/stea-loader.png"
+        alt="Loading STEA"
+        style={{width:120,height:120,objectFit:"contain",background:"transparent",animation:"steaPulse 1.5s infinite ease-in-out",filter:"drop-shadow(0 0 18px rgba(255,200,0,0.35))",marginBottom:14}}
       />
+      <div style={{fontSize:11,letterSpacing:"0.28em",color:"rgba(255,255,255,0.62)",fontWeight:700,textTransform:"uppercase",marginBottom:18}}>STEA AFRICA</div>
+      <div style={{width:110,height:3,borderRadius:999,background:"linear-gradient(90deg,rgba(255,184,0,0.15),#f4c430,rgba(255,184,0,0.15))",boxShadow:"0 0 12px rgba(244,196,48,0.22)",animation:"steaLineGlow 1.5s infinite ease-in-out"}}/>
     </div>
-    <div style={{width:180,height:3,borderRadius:99,background:"rgba(255,255,255,.07)",overflow:"hidden"}}>
-      <div style={{height:"100%",borderRadius:99,background:`linear-gradient(90deg,${G},${G2})`,animation:"loadBar 2s ease-in-out forwards"}}/>
-    </div>
-    <div style={{marginTop:18,fontSize:11,color:"rgba(255,255,255,.3)",fontWeight:700,letterSpacing:".16em",textTransform:"uppercase"}}>Teknolojia kwa Kiswahili 🇹🇿</div>
-  </div>);
+  );
 }
 
 function StarCanvas(){
@@ -2522,7 +2518,7 @@ export default function App(){
         </div>
       ) : (
         <div style={{fontFamily:"'Instrument Sans',system-ui,sans-serif",color:"#fff",minHeight:"100vh",overflowX:"hidden",background:"radial-gradient(circle at 14% 12%,rgba(245,166,35,.12),transparent 18%),radial-gradient(circle at 84% 22%,rgba(86,183,255,.12),transparent 20%),linear-gradient(180deg,#05060a,#080a11)"}}>
-          <style>{`@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&family=Instrument+Sans:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}@keyframes blink{50%{opacity:0}}@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes logoPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.45)}50%{box-shadow:0 0 0 18px rgba(245,166,35,0)}}@keyframes steaGlow{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes steaEntrance{from{opacity:0;transform:scale(0.75)}to{opacity:1;transform:scale(1)}}@keyframes steaPulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 0px rgba(245,166,35,0))}50%{transform:scale(1.04);filter:drop-shadow(0 0 18px rgba(245,166,35,0.35))}}@keyframes loadBar{0%{width:0%}60%{width:65%}100%{width:100%}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(245,166,35,.28);border-radius:3px}input::placeholder{color:rgba(255,255,255,.28)}a{text-decoration:none;color:inherit}nav::-webkit-scrollbar{display:none}@media(max-width:900px){#desktopNav{display:none!important}}@media(min-width:901px){#hamburger{display:none!important}}.course-list-item{display:flex;flex-direction:column;height:100%}.course-img-container{aspect-ratio:16/9;width:100%;border-bottom:1px solid rgba(255,255,255,.05)}.course-hero{display:grid;grid-template-columns:1fr;gap:30px}.course-hero-img{aspect-ratio:16/9;width:100%}@media(min-width:900px){.course-hero{grid-template-columns:1.2fr 1fr;gap:60px;align-items:center}.course-hero-img{aspect-ratio:16/9}}`}</style>
+          <style>{`@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&family=Instrument+Sans:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}@keyframes blink{50%{opacity:0}}@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes logoPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.45)}50%{box-shadow:0 0 0 18px rgba(245,166,35,0)}}@keyframes steaPulse{0%,100%{transform:scale(1);opacity:0.78}50%{transform:scale(1.06);opacity:1}}@keyframes steaLineGlow{0%,100%{opacity:0.55;transform:scaleX(0.96)}50%{opacity:1;transform:scaleX(1)}}@keyframes steaEntrance{from{opacity:0;transform:scale(0.75)}to{opacity:1;transform:scale(1)}}@keyframes loadBar{0%{width:0%}60%{width:65%}100%{width:100%}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(245,166,35,.28);border-radius:3px}input::placeholder{color:rgba(255,255,255,.28)}a{text-decoration:none;color:inherit}nav::-webkit-scrollbar{display:none}@media(max-width:900px){#desktopNav{display:none!important}}@media(min-width:901px){#hamburger{display:none!important}}.course-list-item{display:flex;flex-direction:column;height:100%}.course-img-container{aspect-ratio:16/9;width:100%;border-bottom:1px solid rgba(255,255,255,.05)}.course-hero{display:grid;grid-template-columns:1fr;gap:30px}.course-hero-img{aspect-ratio:16/9;width:100%}@media(min-width:900px){.course-hero{grid-template-columns:1.2fr 1fr;gap:60px;align-items:center}.course-hero-img{aspect-ratio:16/9}}`}</style>
 
           <LoadingScreen done={loaded}/>
           
@@ -2588,7 +2584,7 @@ export default function App(){
           <div style={{position:"sticky",top:0,zIndex:300,backdropFilter:"blur(20px)",background:"rgba(7,8,13,.78)",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
             <div style={{maxWidth:1180,margin:"0 auto",padding:"0 14px",minHeight:76,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,position:"relative"}}>
               <div onClick={()=>goPage("home")} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",flexShrink:0,userSelect:"none"}}>
-                <img src="/stea-icon.jpg" alt="STEA" style={{width:46,height:46,borderRadius:14,objectFit:"cover",flexShrink:0,boxShadow:"0 10px 24px rgba(245,166,35,.2)"}}/>
+                <img src="/stea-icon.png" alt="STEA" style={{width:38,height:38,objectFit:"contain",background:"transparent",flexShrink:0,filter:"drop-shadow(0 4px 10px rgba(245,166,35,0.3))"}}/>
                 <div><strong style={{display:"block",fontSize:18,lineHeight:1,letterSpacing:"-.04em",fontWeight:800}}>STEA</strong><span style={{display:"block",marginTop:3,color:"rgba(255,255,255,.38)",fontSize:10,letterSpacing:".03em"}}>Tanzania&apos;s Tech Platform</span></div>
               </div>
 
@@ -2641,7 +2637,7 @@ export default function App(){
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:60,marginBottom:60}}>
                 <div style={{gridColumn:"span 2"}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
-                    <img src="/stea-logo-main.jpg" alt="STEA" style={{height:56,width:"auto",objectFit:"contain",borderRadius:12,maxWidth:220}}/>
+                    <img src="/stea-main.png" alt="STEA" style={{height:60,width:"auto",objectFit:"contain",background:"transparent",filter:"drop-shadow(0 4px 14px rgba(245,166,35,0.2))"}}/>
                   </div>
                   <p style={{color:"rgba(255,255,255,.5)",lineHeight:1.8,maxWidth:380,marginBottom:32}}>SwahiliTech Elite Academy (STEA) ni jukwaa namba moja la teknolojia kwa Kiswahili nchini Tanzania. Tunaleta elimu, habari na ofa bora za tech kiganjani mwako.</p>
                   <div style={{display:"flex",gap:16,marginBottom:32}}>
