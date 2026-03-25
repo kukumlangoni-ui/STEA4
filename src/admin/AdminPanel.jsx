@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  getFirebaseDb, collection, addDoc, updateDoc, deleteDoc,
-  doc, serverTimestamp, query, limit, onSnapshot,
+  getFirebaseDb, collection, addDoc, updateDoc, deleteDoc, setDoc,
+  doc, serverTimestamp, query, limit, onSnapshot, orderBy,
   sendPushNotification,
 } from "../firebase.js";
 import { timeAgo } from "../hooks/useFirestore.js";
@@ -236,7 +236,7 @@ function TechContentManager({ collectionName }) {
       else {
         await addDoc(collection(db, collectionName), data);
         toast_("Imewekwa live!");
-        // Send push notification — won't block if it fails
+        // Push notification — non-blocking, won't affect post if it fails
         try {
           const section = collectionName === "tips" ? "tips" : "habari";
           await sendPushNotification({
@@ -244,8 +244,8 @@ function TechContentManager({ collectionName }) {
             body: `${data.title} ipo live sasa. Bonyeza usome!`,
             url: `${window.location.origin}/?page=${section}`,
           });
-        } catch (notifErr) {
-          console.warn("[FCM] Notification failed (post still saved):", notifErr);
+        } catch (e) {
+          console.warn("[FCM] Notification failed:", e.message);
         }
       }
       setForm({ 
@@ -558,7 +558,7 @@ function DealsManager() {
 function CoursesManager() {
   const [docs, setDocs] = useState([]);
   const [form, setForm] = useState({ 
-    imageUrl:"", title:"", desc:"", free:true, price:"Bure · Start now", cta:"Anza Sasa →", lessons:"", whatsapp:"https://wa.me/255768260933", accent:"",
+    imageUrl:"", carouselImages: [], title:"", desc:"", free:true, price:"Bure · Start now", cta:"Anza Sasa →", lessons:"", whatsapp:"https://wa.me/255768260933", accent:"",
     badge: "New", level: "Beginner", instructorName: "STEA Instructor", duration: "4 Weeks", totalLessons: "12", studentsCount: "0", rating: "5.0",
     oldPrice: "", newPrice: "", shortPromise: "Jifunze stadi za kisasa kwa Kiswahili.",
     whatYouWillLearn: "", whatYouWillGet: "", suitableFor: "", requirements: "",
@@ -599,6 +599,18 @@ function CoursesManager() {
     });
     return () => unsub();
   }, [db]);
+
+  const addCarouselImage = () => setForm(f => ({ ...f, carouselImages: [...(f.carouselImages||[]), ""] }));
+  const updateCarouselImage = (i, val) => {
+    const arr = [...(form.carouselImages||[])];
+    arr[i] = val;
+    setForm(f => ({ ...f, carouselImages: arr }));
+  };
+  const removeCarouselImage = (i) => {
+    const arr = [...(form.carouselImages||[])];
+    arr.splice(i, 1);
+    setForm(f => ({ ...f, carouselImages: arr }));
+  };
 
   const save = async () => {
     const title = (form.title || "").toString();
@@ -645,7 +657,7 @@ function CoursesManager() {
         toast_("Kozi imewekwa live!"); 
       }
       setForm({ 
-        imageUrl:"", title:"", desc:"", free:true, price:"Bure · Start now", cta:"Anza Sasa →", lessons:"", whatsapp:"https://wa.me/255768260933", accent:"",
+        imageUrl:"", carouselImages: [], title:"", desc:"", free:true, price:"Bure · Start now", cta:"Anza Sasa →", lessons:"", whatsapp:"https://wa.me/255768260933", accent:"",
         badge: "New", level: "Beginner", instructorName: "STEA Instructor", duration: "4 Weeks", totalLessons: "12", studentsCount: "0", rating: "5.0",
         oldPrice: "", newPrice: "", shortPromise: "Jifunze stadi za kisasa kwa Kiswahili.",
         whatYouWillLearn: "", whatYouWillGet: "", suitableFor: "", requirements: "",
@@ -699,6 +711,21 @@ function CoursesManager() {
           </div>
 
           <ImageUploadField label="Real Image URL (Optional)" value={form.imageUrl} onChange={val => setForm(f => ({ ...f, imageUrl: val }))} />
+          
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,.6)", textTransform: "uppercase", letterSpacing: 1 }}>Image Carousel (Optional, Max 20)</div>
+              <Btn onClick={addCarouselImage} style={{ padding: "4px 12px", fontSize: 12 }} color="rgba(255,255,255,.05)">+ Add Image</Btn>
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {(form.carouselImages||[]).map((img, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 40px", gap: 10, alignItems: "end" }}>
+                  <ImageUploadField label={`Image ${i+1} URL`} value={img} onChange={val => updateCarouselImage(i, val)} />
+                  <Btn onClick={() => removeCarouselImage(i)} color="rgba(239,68,68,.1)" textColor="#fca5a5" style={{ padding: 10, marginBottom: 4 }}>✕</Btn>
+                </div>
+              ))}
+            </div>
+          </div>
           
           <Field label="Short Promise / Value Prop"><Input value={form.shortPromise} onChange={e=>setForm(f=>({...f,shortPromise:e.target.value}))} placeholder="Jifunze stadi za kisasa kwa Kiswahili."/></Field>
           <Field label="Maelezo"><Textarea value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Maelezo ya kozi..." style={{minHeight:80}}/></Field>
@@ -802,6 +829,7 @@ function CoursesManager() {
                 setForm({
                   ...form, // Default values from initial state
                   ...item,
+                  carouselImages: item.carouselImages || [],
                   lessons: Array.isArray(item.lessons) ? item.lessons.join("\n") : (item.lessons || ""),
                   whatYouWillLearn: Array.isArray(item.whatYouWillLearn) ? item.whatYouWillLearn.join("\n") : (item.whatYouWillLearn || ""),
                   whatYouWillGet: Array.isArray(item.whatYouWillGet) ? item.whatYouWillGet.join("\n") : (item.whatYouWillGet || ""),
@@ -1257,6 +1285,254 @@ function PromptsManager() {
 }
 
 // ══════════════════════════════════════════════════════
+// SITE CONTENT MANAGER (About, Creator, Contact, Stats, FAQ)
+// ══════════════════════════════════════════════════════
+function SiteContentManager() {
+  const [subTab, setSubTab] = useState("about_us");
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
+  const db = getFirebaseDb();
+  const toast_ = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const [aboutUs, setAboutUs] = useState({ title: "", shortDesc: "", fullDesc: "", mission: "", vision: "", btnText: "", btnLink: "" });
+  const [aboutCreator, setAboutCreator] = useState({ fullName: "", title: "", shortBio: "", fullBio: "", origin: "", location: "", education: "", career: "", hobbies: "", contactText: "", contactLink: "", imageUrl: "", imageAlt: "" });
+  const [contactInfo, setContactInfo] = useState({ whatsapp: "", email: "", supportMsg: "", officeText: "", socialLinks: { facebook: "", twitter: "", instagram: "", youtube: "", linkedin: "", tiktok: "" } });
+  const [stats, setStats] = useState({ websitesBuilt: "", activeProjects: "", launchDate: "", achievements: "" });
+
+  useEffect(() => {
+    if (!db) return;
+    const docs = ["about_us", "about_creator", "contact_info", "stats"];
+    const unsubs = docs.map(id => 
+      onSnapshot(doc(db, "site_settings", id), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data().data;
+          if (id === "about_us") setAboutUs(prev => ({ ...prev, ...data }));
+          if (id === "about_creator") setAboutCreator(prev => ({ ...prev, ...data }));
+          if (id === "contact_info") setContactInfo(prev => ({ ...prev, ...data }));
+          if (id === "stats") setStats(prev => ({ ...prev, ...data }));
+        }
+      })
+    );
+    return () => unsubs.forEach(u => u());
+  }, [db]);
+
+  const saveSettings = async (id, data) => {
+    setLoading(true);
+    try {
+      await setDoc(doc(db, "site_settings", id), { data, updatedAt: serverTimestamp() });
+      toast_("Imesahihishwa kikamilifu!");
+    } catch (e) {
+      toast_(e.message, "error");
+    }
+    setLoading(false);
+  };
+
+  const SUB_TABS = [
+    { id: "about_us", label: "About Us", icon: "🏢" },
+    { id: "about_creator", label: "Creator", icon: "👨‍💻" },
+    { id: "contact_info", label: "Contact", icon: "📞" },
+    { id: "stats", label: "Stats", icon: "📈" },
+    { id: "faq", label: "FAQ", icon: "❓" },
+  ];
+
+  return (
+    <div>
+      {toast && <Toast msg={toast.msg} type={toast.type} />}
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, overflowX: "auto", paddingBottom: 8 }}>
+        {SUB_TABS.map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            style={{ border: "none", borderRadius: 12, padding: "10px 18px", cursor: "pointer", fontWeight: 800, fontSize: 13, whiteSpace: "nowrap",
+              background: subTab === t.id ? `linear-gradient(135deg,${G},${G2})` : "rgba(255,255,255,.06)", color: subTab === t.id ? "#111" : "rgba(255,255,255,.6)",
+              display: "flex", alignItems: "center", gap: 8 }}>
+            <span>{t.icon}</span> {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,.08)", background: "#141823", padding: 24 }}>
+        {subTab === "about_us" && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 18 }}>🏢 About STEA / About Us</h3>
+            <Field label="Section Title"><Input value={aboutUs.title} onChange={e => setAboutUs({ ...aboutUs, title: e.target.value })} placeholder="Kuhusu STEA" /></Field>
+            <Field label="Short Description"><Textarea value={aboutUs.shortDesc} onChange={e => setAboutUs({ ...aboutUs, shortDesc: e.target.value })} placeholder="Short intro..." style={{ minHeight: 60 }} /></Field>
+            <Field label="Full Description"><Textarea value={aboutUs.fullDesc} onChange={e => setAboutUs({ ...aboutUs, fullDesc: e.target.value })} placeholder="Detailed about us..." style={{ minHeight: 120 }} /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field label="Mission"><Textarea value={aboutUs.mission} onChange={e => setAboutUs({ ...aboutUs, mission: e.target.value })} placeholder="Our mission..." style={{ minHeight: 80 }} /></Field>
+              <Field label="Vision"><Textarea value={aboutUs.vision} onChange={e => setAboutUs({ ...aboutUs, vision: e.target.value })} placeholder="Our vision..." style={{ minHeight: 80 }} /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field label="Optional Button Text"><Input value={aboutUs.btnText} onChange={e => setAboutUs({ ...aboutUs, btnText: e.target.value })} placeholder="Learn More" /></Field>
+              <Field label="Optional Button Link"><Input value={aboutUs.btnLink} onChange={e => setAboutUs({ ...aboutUs, btnLink: e.target.value })} placeholder="/about" /></Field>
+            </div>
+            <Btn onClick={() => saveSettings("about_us", aboutUs)} disabled={loading}>{loading ? "Inahifadhi..." : "💾 Hifadhi Mabadiliko"}</Btn>
+          </div>
+        )}
+
+        {subTab === "about_creator" && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 18 }}>👨‍💻 About the Creator</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field label="Creator Full Name"><Input value={aboutCreator.fullName} onChange={e => setAboutCreator({ ...aboutCreator, fullName: e.target.value })} placeholder="Isaya Hans Masika" /></Field>
+              <Field label="Title / Role"><Input value={aboutCreator.title} onChange={e => setAboutCreator({ ...aboutCreator, title: e.target.value })} placeholder="Founder & Developer" /></Field>
+            </div>
+            <ImageUploadField label="Creator Image (Will be used in profile card)" value={aboutCreator.imageUrl} onChange={val => setAboutCreator({ ...aboutCreator, imageUrl: val })} />
+            <Field label="Image Alt Text"><Input value={aboutCreator.imageAlt} onChange={e => setAboutCreator({ ...aboutCreator, imageAlt: e.target.value })} placeholder="Isaya Hans Masika Profile" /></Field>
+            <Field label="Short Bio"><Textarea value={aboutCreator.shortBio} onChange={e => setAboutCreator({ ...aboutCreator, shortBio: e.target.value })} placeholder="One sentence bio..." style={{ minHeight: 60 }} /></Field>
+            <Field label="Full Bio"><Textarea value={aboutCreator.fullBio} onChange={e => setAboutCreator({ ...aboutCreator, fullBio: e.target.value })} placeholder="Detailed background..." style={{ minHeight: 120 }} /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field label="Country / Origin"><Input value={aboutCreator.origin} onChange={e => setAboutCreator({ ...aboutCreator, origin: e.target.value })} placeholder="Tanzania" /></Field>
+              <Field label="Current Location"><Input value={aboutCreator.location} onChange={e => setAboutCreator({ ...aboutCreator, location: e.target.value })} placeholder="China" /></Field>
+            </div>
+            <Field label="Education Background"><Textarea value={aboutCreator.education} onChange={e => setAboutCreator({ ...aboutCreator, education: e.target.value })} placeholder="Degrees, schools..." style={{ minHeight: 60 }} /></Field>
+            <Field label="Career / Profession"><Textarea value={aboutCreator.career} onChange={e => setAboutCreator({ ...aboutCreator, career: e.target.value })} placeholder="Work experience..." style={{ minHeight: 60 }} /></Field>
+            <Field label="Hobbies / Interests"><Input value={aboutCreator.hobbies} onChange={e => setAboutCreator({ ...aboutCreator, hobbies: e.target.value })} placeholder="Tech, AI, Music..." /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field label="Optional Contact Text"><Input value={aboutCreator.contactText} onChange={e => setAboutCreator({ ...aboutCreator, contactText: e.target.value })} placeholder="Contact Creator" /></Field>
+              <Field label="WhatsApp / Contact Link"><Input value={aboutCreator.contactLink} onChange={e => setAboutCreator({ ...aboutCreator, contactLink: e.target.value })} placeholder="https://wa.me/..." /></Field>
+            </div>
+            <Btn onClick={() => saveSettings("about_creator", aboutCreator)} disabled={loading}>{loading ? "Inahifadhi..." : "💾 Hifadhi Mabadiliko"}</Btn>
+          </div>
+        )}
+
+        {subTab === "contact_info" && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 18 }}>📞 Contact & Support Info</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field label="WhatsApp Number"><Input value={contactInfo.whatsapp} onChange={e => setContactInfo({ ...contactInfo, whatsapp: e.target.value })} placeholder="255..." /></Field>
+              <Field label="Email Address"><Input value={contactInfo.email} onChange={e => setContactInfo({ ...contactInfo, email: e.target.value })} placeholder="support@stea.africa" /></Field>
+            </div>
+            <Field label="Support Message"><Textarea value={contactInfo.supportMsg} onChange={e => setContactInfo({ ...contactInfo, supportMsg: e.target.value })} placeholder="How can we help you?" style={{ minHeight: 60 }} /></Field>
+            <Field label="Office / Location Text"><Input value={contactInfo.officeText} onChange={e => setContactInfo({ ...contactInfo, officeText: e.target.value })} placeholder="Mbezi Beach, Dar es Salaam" /></Field>
+            
+            <div style={{ borderTop: "1px solid rgba(255,255,255,.05)", paddingTop: 16 }}>
+              <h4 style={{ margin: "0 0 12px", fontSize: 14, color: G }}>Social Links</h4>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {Object.keys(contactInfo.socialLinks).map(key => (
+                  <Field key={key} label={key.charAt(0).toUpperCase() + key.slice(1)}>
+                    <Input value={contactInfo.socialLinks[key]} onChange={e => setContactInfo({ ...contactInfo, socialLinks: { ...contactInfo.socialLinks, [key]: e.target.value } })} placeholder={`https://${key}.com/...`} />
+                  </Field>
+                ))}
+              </div>
+            </div>
+            <Btn onClick={() => saveSettings("contact_info", contactInfo)} disabled={loading}>{loading ? "Inahifadhi..." : "💾 Hifadhi Mabadiliko"}</Btn>
+          </div>
+        )}
+
+        {subTab === "stats" && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 18 }}>📈 Founder & Website Stats</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field label="Websites Built"><Input value={stats.websitesBuilt} onChange={e => setStats({ ...stats, websitesBuilt: e.target.value })} placeholder="50+" /></Field>
+              <Field label="Active Projects"><Input value={stats.activeProjects} onChange={e => setStats({ ...stats, activeProjects: e.target.value })} placeholder="12" /></Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field label="Launch Date"><Input value={stats.launchDate} onChange={e => setStats({ ...stats, launchDate: e.target.value })} placeholder="Jan 2024" /></Field>
+              <Field label="Short Achievements Text"><Input value={stats.achievements} onChange={e => setStats({ ...stats, achievements: e.target.value })} placeholder="Award winning academy" /></Field>
+            </div>
+            <Btn onClick={() => saveSettings("stats", stats)} disabled={loading}>{loading ? "Inahifadhi..." : "💾 Hifadhi Mabadiliko"}</Btn>
+          </div>
+        )}
+
+        {subTab === "faq" && <FAQManager />}
+      </div>
+    </div>
+  );
+}
+
+function FAQManager() {
+  const [faqs, setFaqs] = useState([]);
+  const [form, setForm] = useState({ question: "", answer: "", category: "General", order: 0, isActive: true });
+  const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const db = getFirebaseDb();
+  const toast_ = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  useEffect(() => {
+    if (!db) return;
+    const q = query(collection(db, "faqs"), orderBy("order", "asc"));
+    const unsub = onSnapshot(q, (snap) => {
+      setFaqs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [db]);
+
+  const save = async () => {
+    if (!form.question || !form.answer) return toast_("Jaza swali na jibu!", "error");
+    setLoading(true);
+    try {
+      const data = { ...form, order: Number(form.order) };
+      if (editing) {
+        await updateDoc(doc(db, "faqs", editing), data);
+        toast_("FAQ imebadilishwa");
+      } else {
+        await addDoc(collection(db, "faqs"), { ...data, createdAt: serverTimestamp() });
+        toast_("FAQ mpya imeongezwa");
+      }
+      setForm({ question: "", answer: "", category: "General", order: faqs.length + 1, isActive: true });
+      setEditing(null);
+    } catch (e) { toast_(e.message, "error"); }
+    setLoading(false);
+  };
+
+  const del = (id) => {
+    setConfirm({
+      msg: "Una uhakika unataka kufuta FAQ hii?",
+      onConfirm: async () => {
+        await deleteDoc(doc(db, "faqs", id));
+        setConfirm(null);
+        toast_("FAQ imefutwa");
+      },
+      onCancel: () => setConfirm(null)
+    });
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 24 }}>
+      {toast && <Toast msg={toast.msg} type={toast.type} />}
+      {confirm && <ConfirmDialog {...confirm} />}
+      
+      <div style={{ background: "rgba(255,255,255,.02)", padding: 20, borderRadius: 16, border: "1px solid rgba(255,255,255,.05)" }}>
+        <h4 style={{ margin: "0 0 16px", fontSize: 16 }}>{editing ? "✏️ Edit FAQ" : "➕ Add New FAQ"}</h4>
+        <div style={{ display: "grid", gap: 16 }}>
+          <Field label="Question"><Input value={form.question} onChange={e => setForm({ ...form, question: e.target.value })} placeholder="Nitaanzaje?" /></Field>
+          <Field label="Answer"><Textarea value={form.answer} onChange={e => setForm({ ...form, answer: e.target.value })} placeholder="Maelezo..." style={{ minHeight: 80 }} /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+            <Field label="Category"><Input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="General" /></Field>
+            <Field label="Order"><Input type="number" value={form.order} onChange={e => setForm({ ...form, order: e.target.value })} /></Field>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: 24 }}>
+              <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} />
+              Active
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn onClick={save} disabled={loading}>{loading ? "Saving..." : editing ? "Update FAQ" : "Add FAQ"}</Btn>
+            {editing && <Btn onClick={() => { setEditing(null); setForm({ question: "", answer: "", category: "General", order: faqs.length, isActive: true }); }} color="rgba(255,255,255,.05)" textColor="#fff">Cancel</Btn>}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {faqs.map(f => (
+          <div key={f.id} style={{ borderRadius: 12, border: "1px solid rgba(255,255,255,.05)", background: "rgba(255,255,255,.02)", padding: 16, display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: f.isActive ? `${G}20` : "rgba(239,68,68,.1)", color: f.isActive ? G : "#fca5a5", display: "grid", placeItems: "center", fontWeight: 800 }}>{f.order}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{f.question}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,.4)" }}>{f.category} • {f.isActive ? "Active" : "Inactive"}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { setEditing(f.id); setForm(f); }} style={{ background: "transparent", border: "none", color: G, cursor: "pointer" }}>✏️</button>
+              <button onClick={() => del(f.id)} style={{ background: "transparent", border: "none", color: "#fca5a5", cursor: "pointer" }}>🗑️</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
 // USERS MANAGER
 // ══════════════════════════════════════════════════════
 function UsersManager() {
@@ -1392,6 +1668,7 @@ export default function AdminPanel({ user, onBack }) {
     { id:"courses",  icon:"🎓", label:"Courses" },
     { id:"products", icon:"🛒", label:"Duka" },
     { id:"websites", icon:"🌐", label:"Websites" },
+    { id:"content",  icon:"📝", label:"Site Content" },
     { id:"users",    icon:"👥", label:"Users" },
   ];
 
@@ -1479,6 +1756,7 @@ export default function AdminPanel({ user, onBack }) {
         {section==="courses" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>🎓 Manage <span style={{color:G}}>Courses</span></h2><CoursesManager/></>}
         {section==="products" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>🛒 Manage <span style={{color:G}}>Duka Products</span></h2><ProductsManager/></>}
         {section==="websites" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>🌐 Manage <span style={{color:G}}>Websites</span></h2><WebsitesManager/></>}
+        {section==="content" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>📝 Manage <span style={{color:G}}>Site Content</span></h2><SiteContentManager/></>}
         {section==="users"   && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>👥 Manage <span style={{color:G}}>Users</span></h2><UsersManager/></>}
       </div>
 
