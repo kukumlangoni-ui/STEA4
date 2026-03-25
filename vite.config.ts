@@ -10,17 +10,13 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
+      'process.env.GEMINI_MODEL': JSON.stringify(env.GEMINI_MODEL || 'gemini-2.0-flash'),
     },
     resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
+      alias: { '@': path.resolve(__dirname, '.') },
     },
-    build: {
-      chunkSizeWarningLimit: 2000,
-    },
-    server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
-    },
+    build: { chunkSizeWarningLimit: 2000 },
+    server: { hmr: process.env.DISABLE_HMR !== 'true' },
   };
 });
