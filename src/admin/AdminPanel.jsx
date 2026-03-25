@@ -1298,10 +1298,11 @@ function SiteContentManager() {
   const [aboutCreator, setAboutCreator] = useState({ fullName: "", title: "", shortBio: "", fullBio: "", origin: "", location: "", education: "", career: "", hobbies: "", contactText: "", contactLink: "", imageUrl: "", imageAlt: "" });
   const [contactInfo, setContactInfo] = useState({ whatsapp: "", email: "", supportMsg: "", officeText: "", socialLinks: { facebook: "", twitter: "", instagram: "", youtube: "", linkedin: "", tiktok: "" } });
   const [stats, setStats] = useState({ websitesBuilt: "", activeProjects: "", launchDate: "", achievements: "" });
+  const [waChannel, setWaChannel] = useState({ link: "https://whatsapp.com/channel/0029VbBdGVnD8SDzNFPb1f1q" });
 
   useEffect(() => {
     if (!db) return;
-    const docs = ["about_us", "about_creator", "contact_info", "stats"];
+    const docs = ["about_us", "about_creator", "contact_info", "stats", "whatsapp_channel"];
     const unsubs = docs.map(id => 
       onSnapshot(doc(db, "site_settings", id), (snap) => {
         if (snap.exists()) {
@@ -1310,6 +1311,7 @@ function SiteContentManager() {
           if (id === "about_creator") setAboutCreator(prev => ({ ...prev, ...data }));
           if (id === "contact_info") setContactInfo(prev => ({ ...prev, ...data }));
           if (id === "stats") setStats(prev => ({ ...prev, ...data }));
+          if (id === "whatsapp_channel") setWaChannel(prev => ({ ...prev, ...data }));
         }
       })
     );
@@ -1333,6 +1335,7 @@ function SiteContentManager() {
     { id: "contact_info", label: "Contact", icon: "📞" },
     { id: "stats", label: "Stats", icon: "📈" },
     { id: "faq", label: "FAQ", icon: "❓" },
+    { id: "whatsapp_channel", label: "WA Channel", icon: "📢" },
   ];
 
   return (
@@ -1434,6 +1437,35 @@ function SiteContentManager() {
         )}
 
         {subTab === "faq" && <FAQManager />}
+
+        {subTab === "whatsapp_channel" && (
+          <div style={{ display: "grid", gap: 20 }}>
+            <div style={{ padding: 20, borderRadius: 16, background: "rgba(37,211,102,.06)", border: "1px solid rgba(37,211,102,.2)" }}>
+              <div style={{ fontWeight: 800, color: "#25d366", fontSize: 15, marginBottom: 6 }}>📢 WhatsApp Channel Link</div>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,.5)", lineHeight: 1.6, margin: 0 }}>
+                Link hii itatumika kwenye kila post — badala ya WhatsApp ya moja kwa moja. Weka link ya channel yako rasmi hapa.
+              </p>
+            </div>
+            <Field label="WhatsApp Channel URL">
+              <Input
+                value={waChannel.link || ""}
+                onChange={e => setWaChannel(p => ({ ...p, link: e.target.value }))}
+                placeholder="https://whatsapp.com/channel/..."
+              />
+            </Field>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <Btn onClick={() => saveSettings("whatsapp_channel", waChannel)} disabled={loading}>
+                {loading ? "Inahifadhi..." : "💾 Hifadhi Link"}
+              </Btn>
+              {waChannel.link && (
+                <a href={waChannel.link} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 13, color: "#25d366", textDecoration: "underline" }}>
+                  Angalia Channel →
+                </a>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
