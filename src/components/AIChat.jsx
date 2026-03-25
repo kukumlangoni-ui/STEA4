@@ -1,422 +1,510 @@
 /* global process */
 import { useState, useEffect, useRef } from "react";
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
-import { Mic, Video, Search, MessageSquare, Send, Loader2, StopCircle, Globe, Play } from "lucide-react";
+import { Send, X, MessageSquare, Phone, ChevronLeft, Sparkles, Bot, Zap } from "lucide-react";
 
-export default function AIChat() {
-  const [mode, setMode] = useState("chat"); // chat, audio, video
+const G = "#F5A623";
+const G2 = "#FFD17C";
+
+// ── Typing dots animation ──────────────────────────────
+function TypingDots() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "12px 16px" }}>
+      {[0, 1, 2].map(i => (
+        <div key={i} style={{
+          width: 7, height: 7, borderRadius: "50%",
+          background: G,
+          animation: `steaDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+        }} />
+      ))}
+      <style>{`
+        @keyframes steaDot {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+          40% { transform: scale(1.1); opacity: 1; }
+        }
+        @keyframes steaFadeUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes steaShimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes steaFloat {
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-6px); }
+        }
+        .stea-msg { animation: steaFadeUp 0.3s ease forwards; }
+        .stea-chat-scroll::-webkit-scrollbar { width: 3px; }
+        .stea-chat-scroll::-webkit-scrollbar-thumb { background: rgba(245,166,35,0.2); border-radius: 3px; }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Message bubble ─────────────────────────────────────
+function MsgBubble({ msg }) {
+  const isUser = msg.role === "user";
+  return (
+    <div className="stea-msg" style={{
+      display: "flex",
+      justifyContent: isUser ? "flex-end" : "flex-start",
+      marginBottom: 14,
+    }}>
+      {!isUser && (
+        <div style={{
+          width: 30, height: 30, borderRadius: 10, flexShrink: 0, marginRight: 8, marginTop: 2,
+          background: `linear-gradient(135deg, ${G}, ${G2})`,
+          display: "grid", placeItems: "center",
+        }}>
+          <Zap size={14} color="#111" strokeWidth={2.5} />
+        </div>
+      )}
+      <div style={{
+        maxWidth: "78%",
+        padding: isUser ? "10px 14px" : "12px 16px",
+        borderRadius: isUser ? "18px 4px 18px 18px" : "4px 18px 18px 18px",
+        background: isUser
+          ? `linear-gradient(135deg, ${G}, ${G2})`
+          : "rgba(255,255,255,0.07)",
+        border: isUser ? "none" : "1px solid rgba(255,255,255,0.08)",
+        color: isUser ? "#111" : "#fff",
+        fontSize: 14,
+        lineHeight: 1.65,
+        fontWeight: isUser ? 600 : 400,
+        wordBreak: "break-word",
+        backdropFilter: isUser ? "none" : "blur(10px)",
+        boxShadow: isUser
+          ? "0 4px 20px rgba(245,166,35,0.25)"
+          : "0 2px 12px rgba(0,0,0,0.2)",
+      }}>
+        <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
+          <ReactMarkdown
+            components={{
+              code: ({ children }) => (
+                <code style={{
+                  background: "rgba(245,166,35,0.12)",
+                  color: G,
+                  padding: "2px 6px",
+                  borderRadius: 5,
+                  fontSize: 12,
+                  fontFamily: "monospace",
+                }}>{children}</code>
+              ),
+              pre: ({ children }) => (
+                <pre style={{
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 10,
+                  padding: 12,
+                  overflowX: "auto",
+                  fontSize: 12,
+                  margin: "8px 0",
+                }}>{children}</pre>
+              ),
+              p: ({ children }) => <p style={{ margin: "4px 0" }}>{children}</p>,
+              ul: ({ children }) => <ul style={{ paddingLeft: 18, margin: "6px 0" }}>{children}</ul>,
+              ol: ({ children }) => <ol style={{ paddingLeft: 18, margin: "6px 0" }}>{children}</ol>,
+              li: ({ children }) => <li style={{ marginBottom: 3 }}>{children}</li>,
+              strong: ({ children }) => <strong style={{ color: isUser ? "#111" : G }}>{children}</strong>,
+            }}
+          >{msg.text}</ReactMarkdown>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────
+export default function AIChat({ onClose }) {
+  const [view, setView] = useState("home");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [videoPrompt, setVideoPrompt] = useState("");
-  const [videoUrl, setVideoUrl] = useState(null);
-  const [hasApiKey, setHasApiKey] = useState(true);
-  const [videoLoading, setVideoLoading] = useState(false);
-  const [searchGrounding, setSearchGrounding] = useState(true);
-  const sessionRef = useRef(null);
-  const audioContextRef = useRef(null);
-  const audioStreamRef = useRef(null);
-  const audioWorkletNodeRef = useRef(null);
+  const chatEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio) {
-        const has = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(has);
-      }
-    };
-    checkKey();
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
   }, []);
 
-  const handleOpenKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setHasApiKey(true);
-    }
-  };
-  
-  const chatEndRef = useRef(null);
-  const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  useEffect(scrollToBottom, [messages]);
+  useEffect(() => {
+    if (view === "chat") setTimeout(() => inputRef.current?.focus(), 300);
+  }, [view]);
 
-  const API_KEY = typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '';
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const handleSend = async (textOverride) => {
+    const text = (textOverride || input).trim();
+    if (!text || loading) return;
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg = { role: "user", text: input };
-    setMessages(prev => [...prev, userMsg]);
+    if (view !== "chat") setView("chat");
+    setMessages(prev => [...prev, { role: "user", text }]);
     setInput("");
     setLoading(true);
 
     try {
-      const config = {
-        systemInstruction: "You are STEA AI, a helpful assistant for SwahiliTech Elite Academy. You speak Swahili and English. You provide tech tips, help with coding, and explain technology in simple terms.",
-      };
-      
-      if (searchGrounding) {
-        config.tools = [{ googleSearch: {} }];
-      }
+      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+      const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+      const ai = new GoogleGenAI({ apiKey });
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: input,
-        config
+        model,
+        contents: text,
+        config: {
+          systemInstruction: `You are STEA AI, a helpful assistant for SwahiliTech Elite Academy (STEA).
+STEA was created and is owned by Isaya Hans Masika, a Tanzanian tech creator and web developer originally from Mbeya Region, currently based in China.
+Isaya holds a Bachelor's Degree in Computer Science from Guilin University of Electronic Technology, China.
+His education background includes Lugufu Boys Secondary School, Mbezi Beach Secondary School, and Wazo Hill Primary School.
+He is the 4th born in a family of 6 children and is passionate about technology, website development, and digital tools.
+STEA focuses on tech education, AI tools, and digital resources in Kiswahili.
+The platform was officially launched recently after Isaya successfully built and deployed multiple working websites.
+When asked "Who owns STEA?", always answer clearly: Isaya Hans Masika.
+Respond confidently and accurately in Swahili and English. Keep responses concise and helpful.`,
+        },
       });
 
-      const aiMsg = { 
-        role: "ai", 
-        text: response.text,
-        grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
-      };
-      setMessages(prev => [...prev, aiMsg]);
-    } catch (error) {
-      console.error("AI Error:", error);
-      setMessages(prev => [...prev, { role: "ai", text: "Samahani, kuna tatizo limetokea. Tafadhali jaribu tena." }]);
+      setMessages(prev => [...prev, { role: "ai", text: response.text }]);
+    } catch (err) {
+      console.error("[STEA AI]", err);
+      setMessages(prev => [...prev, {
+        role: "ai",
+        text: "Samahani, kuna tatizo limetokea. Tafadhali jaribu tena au wasiliana nasi kupitia WhatsApp.",
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVideoGenerate = async () => {
-    if (!hasApiKey && window.aistudio) {
-      await handleOpenKey();
-    }
-    if (!videoPrompt.trim()) return;
-    setVideoLoading(true);
-    setVideoUrl(null);
-    
-    try {
-      let operation = await ai.models.generateVideos({
-        model: 'veo-3.1-fast-generate-preview',
-        prompt: videoPrompt,
-        config: {
-          numberOfVideos: 1,
-          resolution: '720p',
-          aspectRatio: '16:9'
-        }
-      });
-
-      while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        operation = await ai.operations.getVideosOperation({ operation });
-      }
-
-      const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-      const response = await fetch(downloadLink, {
-        method: 'GET',
-        headers: {
-          'x-goog-api-key': typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '',
-        },
-      });
-      const blob = await response.blob();
-      setVideoUrl(URL.createObjectURL(blob));
-    } catch (error) {
-      console.error("Video Error:", error);
-      alert("Video generation failed. Please try again.");
-    } finally {
-      setVideoLoading(false);
-    }
-  };
-
-  const playPCM = (base64) => {
-    if (!audioContextRef.current) return;
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const pcm = new Int16Array(bytes.buffer);
-    const float32 = new Float32Array(pcm.length);
-    for (let i = 0; i < pcm.length; i++) float32[i] = pcm[i] / 0x7FFF;
-    
-    const buffer = audioContextRef.current.createBuffer(1, float32.length, 24000);
-    buffer.getChannelData(0).set(float32);
-    const source = audioContextRef.current.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioContextRef.current.destination);
-    source.start();
-  };
-
-  const handleAudioToggle = async () => {
-    if (isRecording) {
-      sessionRef.current?.close();
-      audioStreamRef.current?.getTracks().forEach(t => t.stop());
-      audioContextRef.current?.close();
-      setIsRecording(false);
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioStreamRef.current = stream;
-      
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      audioContextRef.current = audioContext;
-      
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      audioWorkletNodeRef.current = processor;
-      
-      const session = await ai.live.connect({
-        model: "gemini-2.5-flash-native-audio-preview-12-2025",
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
-          },
-          systemInstruction: "You are STEA AI, a helpful assistant for SwahiliTech Elite Academy. You speak Swahili and English. You provide tech tips, help with coding, and explain technology in simple terms.",
-        },
-        callbacks: {
-          onopen: () => {
-            console.log("Live session opened");
-            setIsRecording(true);
-          },
-          onmessage: async (message) => {
-            const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-            if (base64Audio) {
-              playPCM(base64Audio);
-            }
-            if (message.serverContent?.interrupted) {
-              // Handle interruption
-            }
-          },
-          onclose: () => {
-            setIsRecording(false);
-          },
-          onerror: (err) => {
-            console.error("Live Error:", err);
-            setIsRecording(false);
-          }
-        }
-      });
-      sessionRef.current = session;
-
-      processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        const pcmData = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-        }
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
-        session.sendRealtimeInput({
-          audio: { data: base64, mimeType: 'audio/pcm;rate=16000' }
-        });
-      };
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-
-    } catch (err) {
-      console.error("Mic Error:", err);
-      alert("Could not access microphone. Please check permissions.");
-    }
-  };
+  const quickActions = [
+    { icon: "🎓", label: "Courses za STEA", prompt: "Nionyeshe courses zinazopatikana STEA" },
+    { icon: "🔥", label: "Deals za leo", prompt: "Kuna deals gani za leo?" },
+    { icon: "🌐", label: "Website tools", prompt: "Nisaidie kupata website tools bora" },
+    { icon: "💬", label: "Wasiliana nasi", prompt: "Nataka kuwasiliana na STEA moja kwa moja" },
+  ];
 
   return (
-    <div className="flex flex-col h-[80vh] bg-[#0d1019] rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#F5A623] to-[#FFD17C] flex items-center justify-center shadow-lg">
-            <MessageSquare className="w-6 h-6 text-[#111]" />
-          </div>
+    <div style={{
+      display: "flex", flexDirection: "column",
+      height: "100%", width: "100%",
+      background: "linear-gradient(160deg, #080c18 0%, #0a0e1a 40%, #05060a 100%)",
+      borderRadius: 24,
+      overflow: "hidden",
+      position: "relative",
+      fontFamily: "'Instrument Sans', system-ui, sans-serif",
+    }}>
+
+      {/* ── Animated background grid ── */}
+      <div style={{
+        position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
+        backgroundImage: `
+          linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px)
+        `,
+        backgroundSize: "40px 40px",
+      }} />
+
+      {/* ── Glow orbs ── */}
+      <div style={{
+        position: "absolute", top: -60, right: -60, width: 220, height: 220,
+        borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(245,166,35,0.12) 0%, transparent 70%)",
+        pointerEvents: "none", zIndex: 0,
+      }} />
+      <div style={{
+        position: "absolute", bottom: 80, left: -80, width: 260, height: 260,
+        borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(86,183,255,0.06) 0%, transparent 70%)",
+        pointerEvents: "none", zIndex: 0,
+      }} />
+
+      {/* ── Header ── */}
+      <div style={{
+        position: "relative", zIndex: 10,
+        padding: "14px 18px",
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
+        background: "rgba(255,255,255,0.02)",
+        backdropFilter: "blur(20px)",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {view === "chat" ? (
+            <button onClick={() => setView("home")} style={{
+              width: 34, height: 34, borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.05)",
+              color: "rgba(255,255,255,0.6)", cursor: "pointer",
+              display: "grid", placeItems: "center",
+            }}>
+              <ChevronLeft size={16} />
+            </button>
+          ) : (
+            <div style={{
+              width: 40, height: 40, borderRadius: 13,
+              background: `linear-gradient(135deg, ${G}, ${G2})`,
+              display: "grid", placeItems: "center",
+              boxShadow: `0 0 20px rgba(245,166,35,0.3)`,
+              animation: "steaFloat 3s ease-in-out infinite",
+            }}>
+              <Zap size={20} color="#111" strokeWidth={2.5} />
+            </div>
+          )}
           <div>
-            <h2 className="font-bold text-lg leading-tight">STEA AI Assistant</h2>
-            <p className="text-xs text-white/40 uppercase tracking-widest font-bold">Powered by Gemini 3</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: "#fff", letterSpacing: "-.02em" }}>
+                STEA AI
+              </span>
+              <div style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: "#22c55e",
+                boxShadow: "0 0 8px rgba(34,197,94,0.7)",
+              }} />
+            </div>
+            <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.38)", fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase" }}>
+              Powered by Gemini • STEA Africa
+            </div>
           </div>
         </div>
-        <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
-          <button 
-            onClick={() => setMode("chat")}
-            className={`p-2 rounded-lg transition-all ${mode === "chat" ? "bg-[#F5A623] text-[#111]" : "text-white/60 hover:text-white"}`}
-          >
-            <MessageSquare className="w-5 h-5" />
-          </button>
-          <button 
-            onClick={() => setMode("audio")}
-            className={`p-2 rounded-lg transition-all ${mode === "audio" ? "bg-[#F5A623] text-[#111]" : "text-white/60 hover:text-white"}`}
-          >
-            <Mic className="w-5 h-5" />
-          </button>
-          <button 
-            onClick={() => setMode("video")}
-            className={`p-2 rounded-lg transition-all ${mode === "video" ? "bg-[#F5A623] text-[#111]" : "text-white/60 hover:text-white"}`}
-          >
-            <Video className="w-5 h-5" />
-          </button>
-        </div>
+        <button onClick={onClose} style={{
+          width: 32, height: 32, borderRadius: "50%",
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(255,255,255,0.04)",
+          color: "rgba(255,255,255,0.4)", cursor: "pointer",
+          display: "grid", placeItems: "center",
+          transition: "all 0.2s",
+        }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#fff"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
+        >
+          <X size={16} />
+        </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-white/10">
-        {mode === "chat" && (
-          <>
+      {/* ── Content ── */}
+      <div style={{ flex: 1, overflow: "hidden", position: "relative", zIndex: 1 }}>
+
+        {/* HOME VIEW */}
+        {view === "home" && (
+          <div style={{ height: "100%", overflowY: "auto", padding: "28px 20px 20px" }} className="stea-chat-scroll">
+
+            {/* Hero */}
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: 20, margin: "0 auto 16px",
+                background: `linear-gradient(135deg, ${G}, ${G2})`,
+                display: "grid", placeItems: "center",
+                boxShadow: `0 8px 32px rgba(245,166,35,0.35)`,
+              }}>
+                <Bot size={28} color="#111" strokeWidth={2} />
+              </div>
+              <h3 style={{ fontSize: 22, fontWeight: 800, color: "#fff", margin: "0 0 8px", letterSpacing: "-.04em" }}>
+                Karibu STEA AI! 🇹🇿
+              </h3>
+              <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.7, maxWidth: 260, margin: "0 auto" }}>
+                Msaidizi wako wa tech kwa Kiswahili. Uliza chochote — nitakusaidia haraka!
+              </p>
+            </div>
+
+            {/* CTA Buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+              <button onClick={() => setView("chat")} style={{
+                padding: "14px 18px",
+                borderRadius: 16,
+                border: "none",
+                background: `linear-gradient(135deg, ${G}, ${G2})`,
+                color: "#111", fontWeight: 800, fontSize: 14,
+                cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                boxShadow: `0 8px 24px rgba(245,166,35,0.3)`,
+                transition: "transform 0.2s, box-shadow 0.2s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(245,166,35,0.4)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 8px 24px rgba(245,166,35,0.3)"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ padding: "6px 8px", background: "rgba(0,0,0,0.15)", borderRadius: 9, display: "grid", placeItems: "center" }}>
+                    <Sparkles size={16} />
+                  </div>
+                  <span>Anza Chat na AI</span>
+                </div>
+                <ChevronLeft size={16} style={{ transform: "rotate(180deg)" }} />
+              </button>
+
+              <a href="https://wa.me/255752661307" target="_blank" rel="noopener noreferrer" style={{
+                padding: "14px 18px", borderRadius: 16,
+                border: "1px solid rgba(37,211,102,0.2)",
+                background: "rgba(37,211,102,0.06)",
+                color: "#fff", fontWeight: 700, fontSize: 14,
+                textDecoration: "none",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                transition: "background 0.2s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(37,211,102,0.12)"}
+                onMouseLeave={e => e.currentTarget.style.background = "rgba(37,211,102,0.06)"}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ padding: "6px 8px", background: "rgba(37,211,102,0.1)", borderRadius: 9, display: "grid", placeItems: "center" }}>
+                    <Phone size={16} color="#25D366" />
+                  </div>
+                  <span>Chat nasi WhatsApp</span>
+                </div>
+                <ChevronLeft size={16} style={{ transform: "rotate(180deg)", opacity: 0.4 }} />
+              </a>
+            </div>
+
+            {/* Quick Actions */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: ".18em", marginBottom: 12 }}>
+                Maswali ya Haraka
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {quickActions.map(a => (
+                  <button key={a.label} onClick={() => handleSend(a.prompt)} style={{
+                    textAlign: "left", padding: "12px 14px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    background: "rgba(255,255,255,0.03)",
+                    color: "rgba(255,255,255,0.7)", fontSize: 12.5, fontWeight: 600,
+                    cursor: "pointer", lineHeight: 1.5,
+                    transition: "all 0.2s",
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,166,35,0.08)"; e.currentTarget.style.borderColor = "rgba(245,166,35,0.2)"; e.currentTarget.style.color = "#fff"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+                  >
+                    <span style={{ fontSize: 16, display: "block", marginBottom: 4 }}>{a.icon}</span>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CHAT VIEW */}
+        {view === "chat" && (
+          <div style={{ height: "100%", overflowY: "auto", padding: "20px 16px 8px" }} className="stea-chat-scroll">
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-60">
-                <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center">
-                  <Globe className="w-10 h-10 text-[#F5A623]" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">Karibu STEA AI</h3>
-                  <p className="max-w-xs text-sm">Uliza chochote kuhusu teknolojia, coding, au STEA. Nitakujibu kwa Kiswahili au Kiingereza.</p>
-                </div>
+              <div style={{ textAlign: "center", padding: "40px 20px", opacity: 0.35 }}>
+                <MessageSquare size={32} color="#fff" style={{ margin: "0 auto 12px" }} />
+                <p style={{ fontSize: 13, color: "#fff", margin: 0 }}>Uliza chochote kuhusu tech au STEA...</p>
               </div>
             )}
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] p-4 rounded-2xl ${msg.role === "user" ? "bg-[#F5A623] text-[#111] font-medium" : "bg-white/5 border border-white/10 text-white/90"}`}>
-                  <div className="prose prose-invert prose-sm max-w-none">
-                    <ReactMarkdown>{msg.text}</ReactMarkdown>
-                  </div>
-                  {msg.grounding?.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-white/10">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2">Sources:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {msg.grounding.map((chunk, j) => chunk.web && (
-                          <a key={j} href={chunk.web.uri} target="_blank" rel="noreferrer" className="text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 transition-colors">
-                            {chunk.web.title || "Source"}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+            {messages.map((msg, i) => <MsgBubble key={i} msg={msg} />)}
             {loading && (
-              <div className="flex justify-start">
-                <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#F5A623]" />
-                  <span className="text-sm text-white/60">STEA AI anafikiria...</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 10, flexShrink: 0,
+                  background: `linear-gradient(135deg, ${G}, ${G2})`,
+                  display: "grid", placeItems: "center",
+                }}>
+                  <Zap size={14} color="#111" strokeWidth={2.5} />
+                </div>
+                <div style={{
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "4px 18px 18px 18px",
+                  backdropFilter: "blur(10px)",
+                }}>
+                  <TypingDots />
                 </div>
               </div>
             )}
             <div ref={chatEndRef} />
-          </>
-        )}
-
-        {mode === "audio" && (
-          <div className="flex flex-col items-center justify-center h-full space-y-8 text-center">
-            <div className={`w-32 h-32 rounded-full flex items-center justify-center transition-all duration-500 ${isRecording ? "bg-red-500/20 scale-110 shadow-[0_0_50px_rgba(239,68,68,0.3)]" : "bg-white/5"}`}>
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center ${isRecording ? "bg-red-500 animate-pulse" : "bg-[#F5A623]"}`}>
-                {isRecording ? <StopCircle className="w-10 h-10 text-white" /> : <Mic className="w-10 h-10 text-[#111]" />}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold">{isRecording ? "STEA AI anakusikiliza..." : "Ongea na STEA AI"}</h3>
-              <p className="text-white/40 max-w-xs mx-auto mt-2">Tumia sauti yako kuuliza maswali na kupata majibu ya papo hapo kwa sauti.</p>
-            </div>
-            <button 
-              onClick={handleAudioToggle}
-              className={`px-8 py-4 rounded-2xl font-bold transition-all ${isRecording ? "bg-red-500 text-white" : "bg-[#F5A623] text-[#111] hover:scale-105"}`}
-            >
-              {isRecording ? "Stop Conversation" : "Start Conversation"}
-            </button>
-          </div>
-        )}
-
-        {mode === "video" && (
-          <div className="flex flex-col items-center justify-center h-full space-y-6">
-            {!hasApiKey && window.aistudio && (
-              <div className="w-full max-w-md p-6 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl text-center space-y-4">
-                <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto">
-                  <Globe className="w-6 h-6 text-yellow-500" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-yellow-500">API Key Required</h4>
-                  <p className="text-sm text-yellow-500/60 mt-1">Video generation requires a paid Google Cloud API key. Please select one to continue.</p>
-                </div>
-                <button 
-                  onClick={handleOpenKey}
-                  className="w-full py-3 bg-yellow-500 text-[#111] font-bold rounded-xl hover:bg-yellow-400 transition-all"
-                >
-                  Select API Key
-                </button>
-                <p className="text-[10px] text-yellow-500/40">
-                  See <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="underline">billing documentation</a> for more info.
-                </p>
-              </div>
-            )}
-            {videoUrl ? (
-              <div className="w-full aspect-video rounded-2xl overflow-hidden border border-white/10 bg-black shadow-2xl relative group">
-                <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
-                <button 
-                  onClick={() => setVideoUrl(null)}
-                  className="absolute top-4 right-4 p-2 bg-black/60 backdrop-blur-md rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center space-y-4 text-center">
-                <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center">
-                  <Video className="w-10 h-10 text-[#F5A623]" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">Veo Video Generation</h3>
-                  <p className="text-sm text-white/40 max-w-xs">Tengeneza video fupi za kijanja kwa kutumia AI. Andika maelezo hapa chini.</p>
-                </div>
-              </div>
-            )}
-            
-            <div className="w-full max-w-md space-y-4">
-              <textarea 
-                value={videoPrompt}
-                onChange={(e) => setVideoPrompt(e.target.value)}
-                placeholder="Mfano: Robot akicheza mpira kwenye mwezi, cinematic style..."
-                className="w-100 h-32 p-4 rounded-2xl bg-white/5 border border-white/10 text-white outline-none focus:border-[#F5A623] transition-colors resize-none"
-              />
-              <button 
-                onClick={handleVideoGenerate}
-                disabled={videoLoading || !videoPrompt.trim()}
-                className="w-full py-4 rounded-2xl bg-[#F5A623] text-[#111] font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] transition-transform"
-              >
-                {videoLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Inatengeneza video...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5" />
-                    Generate Video
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         )}
       </div>
 
-      {/* Input */}
-      {mode === "chat" && (
-        <div className="p-4 border-t border-white/10 bg-white/5 backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setSearchGrounding(!searchGrounding)}
-              className={`p-3 rounded-xl border transition-all ${searchGrounding ? "bg-[#F5A623]/20 border-[#F5A623] text-[#F5A623]" : "bg-white/5 border-white/10 text-white/40"}`}
-              title="Toggle Google Search Grounding"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-            <input 
+      {/* ── Input Area ── */}
+      <div style={{
+        position: "relative", zIndex: 10,
+        padding: "12px 16px 16px",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(0,0,0,0.3)",
+        backdropFilter: "blur(20px)",
+      }}>
+        {view === "home" && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 18, padding: "6px 8px 6px 16px",
+            transition: "border-color 0.2s",
+          }}
+            onFocus={e => e.currentTarget.style.borderColor = `rgba(245,166,35,0.4)`}
+            onBlur={e => e.currentTarget.style.borderColor = `rgba(255,255,255,0.08)`}
+          >
+            <input
+              ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Uliza chochote..."
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-[#F5A623] transition-colors"
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSend()}
+              onFocus={e => e.currentTarget.closest("div").style.borderColor = `rgba(245,166,35,0.4)`}
+              onBlur={e => e.currentTarget.closest("div").style.borderColor = `rgba(255,255,255,0.08)`}
+              placeholder="Uliza swali lako..."
+              style={{
+                flex: 1, background: "transparent", border: "none", outline: "none",
+                color: "#fff", fontSize: 14,
+              }}
             />
-            <button 
-              onClick={handleSend}
-              disabled={loading || !input.trim()}
-              className="p-3 bg-[#F5A623] text-[#111] rounded-xl font-bold disabled:opacity-50 hover:scale-105 transition-transform"
-            >
-              <Send className="w-5 h-5" />
+            <button onClick={() => handleSend()} disabled={!input.trim()} style={{
+              width: 38, height: 38, borderRadius: 12,
+              border: "none",
+              background: input.trim() ? `linear-gradient(135deg, ${G}, ${G2})` : "rgba(255,255,255,0.07)",
+              color: input.trim() ? "#111" : "rgba(255,255,255,0.2)",
+              cursor: input.trim() ? "pointer" : "default",
+              display: "grid", placeItems: "center",
+              transition: "all 0.2s",
+            }}>
+              <Send size={16} />
             </button>
           </div>
+        )}
+
+        {view === "chat" && (
+          <div style={{
+            display: "flex", alignItems: "flex-end", gap: 10,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 18, padding: "8px 8px 8px 16px",
+          }}
+            onFocusCapture={e => e.currentTarget.style.borderColor = `rgba(245,166,35,0.4)`}
+            onBlurCapture={e => e.currentTarget.style.borderColor = `rgba(255,255,255,0.08)`}
+          >
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              placeholder="Andika swali lako... (Enter kutuma)"
+              rows={1}
+              style={{
+                flex: 1, background: "transparent", border: "none", outline: "none",
+                color: "#fff", fontSize: 14, lineHeight: 1.6, resize: "none",
+                fontFamily: "inherit", maxHeight: 120, overflowY: "auto",
+              }}
+            />
+            <button onClick={() => handleSend()} disabled={loading || !input.trim()} style={{
+              width: 40, height: 40, borderRadius: 13, flexShrink: 0,
+              border: "none",
+              background: (!loading && input.trim()) ? `linear-gradient(135deg, ${G}, ${G2})` : "rgba(255,255,255,0.07)",
+              color: (!loading && input.trim()) ? "#111" : "rgba(255,255,255,0.2)",
+              cursor: (!loading && input.trim()) ? "pointer" : "default",
+              display: "grid", placeItems: "center",
+              transition: "all 0.2s",
+              boxShadow: (!loading && input.trim()) ? `0 4px 16px rgba(245,166,35,0.3)` : "none",
+            }}>
+              <Send size={17} />
+            </button>
+          </div>
+        )}
+        <div style={{ textAlign: "center", marginTop: 8, fontSize: 9.5, color: "rgba(255,255,255,0.18)", fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase" }}>
+          STEA AI • Powered by Gemini
         </div>
-      )}
+      </div>
     </div>
   );
 }
