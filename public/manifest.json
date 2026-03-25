@@ -1,42 +1,35 @@
 {
   "name": "SwahiliTech Elite Academy",
   "short_name": "STEA",
-  "description": "Teknolojia kwa Kiswahili 🇹🇿 — Tech Tips, Courses, Deals na AI kwa Watanzania.",
+  "description": "Teknolojia kwa Kiswahili 🇹🇿",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
   "theme_color": "#F5A623",
   "background_color": "#05060a",
   "lang": "sw",
-  "categories": ["education", "technology"],
   "icons": [
-    {
-      "src": "/icons/stea-icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/stea-icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/stea-icon-maskable-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icons/stea-icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
-  ],
-  "shortcuts": [
-    { "name": "Tech Tips", "short_name": "Tips", "url": "/?page=tips", "description": "Tech Tips za leo" },
-    { "name": "Deals", "short_name": "Deals", "url": "/?page=deals", "description": "Deals za Tanzania" }
+    { "src": "/icons/stea-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/stea-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/stea-icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/stea-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
+```
+
+---
+
+**Muundo wa mwisho unaotakiwa:**
+```
+public/
+├── firebase-messaging-sw.js  ← USIGUSE
+├── manifest.json             ← UPDATE
+├── stea-icon.png             ← USIGUSE (navbar)
+├── stea-loader.png           ← USIGUSE (loading)
+├── stea-main.png             ← USIGUSE (footer)
+├── sw.js                     ← USIGUSE
+└── icons/                    ← FOLDER MPYA
+    ├── stea-icon-192.png
+    ├── stea-icon-512.png
+    ├── stea-icon-maskable-192.png
+    ├── stea-icon-maskable-512.png
+    └── favicon-32.png
