@@ -29,7 +29,10 @@ import {
   getFirebaseAuth,
   getFirebaseDb,
   GoogleAuthProvider,
+  ADMIN_EMAIL,
   isAdminEmail,
+  requestNotificationPermission,
+  sendPushNotification,
   doc,
   setDoc,
   getDoc,
@@ -45,9 +48,6 @@ import {
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
-  requestNotificationPermission,
-  handleFirestoreError,
-  OperationType,
 } from "./firebase.js";
 import {
   useCollection,
@@ -165,104 +165,6 @@ class ErrorBoundary extends Component {
 const G = "#F5A623",
   G2 = "#FFD17C",
   CB = "#141823";
-
-const WA_CHANNEL_DEFAULT = "https://whatsapp.com/channel/0029VbBdGVnD8SDzNFPb1f1q";
-
-// ── Share Button ──────────────────────────────────────
-function ShareButton({ title, style = {} }) {
-  const [showMenu, setShowMenu] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const url = window.location.href;
-
-  const doShare = async (e) => {
-    e.stopPropagation();
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, url });
-        return;
-      } catch {}
-    }
-    setShowMenu(v => !v);
-  };
-
-  const copyLink = (e) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true);
-      setTimeout(() => { setCopied(false); setShowMenu(false); }, 2000);
-    });
-  };
-
-  const shareWA = (e) => {
-    e.stopPropagation();
-    window.open(`https://wa.me/?text=${encodeURIComponent(title + " " + url)}`, "_blank");
-    setShowMenu(false);
-  };
-
-  const shareFB = (e) => {
-    e.stopPropagation();
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank");
-    setShowMenu(false);
-  };
-
-  const shareX = (e) => {
-    e.stopPropagation();
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`, "_blank");
-    setShowMenu(false);
-  };
-
-  return (
-    <div style={{ position: "relative", ...style }} onClick={e => e.stopPropagation()}>
-      <button
-        onClick={doShare}
-        title="Shiriki"
-        style={{
-          width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-          border: "1px solid rgba(255,255,255,.12)",
-          background: "rgba(255,255,255,.06)",
-          color: "rgba(255,255,255,.7)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", transition: "all .2s",
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,166,35,.15)"; e.currentTarget.style.borderColor = "rgba(245,166,35,.3)"; e.currentTarget.style.color = G; }}
-        onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,.06)"; e.currentTarget.style.borderColor = "rgba(255,255,255,.12)"; e.currentTarget.style.color = "rgba(255,255,255,.7)"; }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-        </svg>
-      </button>
-
-      {showMenu && (
-        <div style={{
-          position: "absolute", bottom: "calc(100% + 8px)", right: 0, zIndex: 999,
-          background: "rgba(14,16,26,.98)", border: "1px solid rgba(255,255,255,.12)",
-          borderRadius: 14, padding: 8, minWidth: 170,
-          boxShadow: "0 12px 40px rgba(0,0,0,.5)",
-          backdropFilter: "blur(20px)",
-        }}>
-          {[
-            { label: copied ? "✅ Link Imenakiliwa!" : "🔗 Nakili Link", fn: copyLink },
-            { label: "💬 WhatsApp", fn: shareWA },
-            { label: "📘 Facebook", fn: shareFB },
-            { label: "🐦 Twitter / X", fn: shareX },
-          ].map(({ label, fn }) => (
-            <button key={label} onClick={fn} style={{
-              display: "block", width: "100%", textAlign: "left",
-              padding: "9px 14px", borderRadius: 9, border: "none",
-              background: "transparent", color: "rgba(255,255,255,.8)",
-              fontSize: 13, fontWeight: 600, cursor: "pointer",
-              transition: "background .15s",
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(245,166,35,.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >{label}</button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Earth Hero Component ──────────────────────────────
 function EarthHero() {
@@ -407,34 +309,30 @@ const BS = {
 // ════════════════════════════════════════════════════
 function LoadingScreen({ done }) {
   const [hide, setHide] = useState(false);
-  useEffect(() => { if (done) setTimeout(() => setHide(true), 700); }, [done]);
+  useEffect(() => {
+    if (done) setTimeout(() => setHide(true), 700);
+  }, [done]);
   if (hide) return null;
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 9999, background: "#05060a",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      transition: "opacity .7s", opacity: done ? 0 : 1,
-    }}>
-      <div style={{
-        width: 72, height: 72, borderRadius: 20, marginBottom: 24,
-        background: "linear-gradient(135deg,#F5A623,#FFD17C)",
-        display: "grid", placeItems: "center",
-        animation: "logoPulse 1.5s ease-in-out infinite",
-        boxShadow: "0 0 40px rgba(245,166,35,0.3)",
-      }}>
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>
-        </svg>
-      </div>
-      <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: "-.04em", color: "#fff", marginBottom: 4 }}>
-        STEA
-      </div>
-      <div style={{ fontSize: 11, color: "rgba(255,255,255,.35)", fontWeight: 700, letterSpacing: ".16em", textTransform: "uppercase", marginBottom: 32 }}>
-        Teknolojia kwa Kiswahili 🇹🇿
-      </div>
-      <div style={{ width: 160, height: 3, borderRadius: 99, background: "rgba(255,255,255,.07)", overflow: "hidden" }}>
-        <div style={{ height: "100%", borderRadius: 99, background: "linear-gradient(90deg,#F5A623,#FFD17C)", animation: "loadBar 2s ease-in-out forwards" }}/>
-      </div>
+    <div
+      className="stea-loader-wrapper"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        transition: "opacity .7s",
+        opacity: done ? 0 : 1,
+      }}
+    >
+      <img 
+        src="/stea-logo-animated.jpg" 
+        alt="Loading STEA" 
+        className="stea-loader-logo" 
+        referrerPolicy="no-referrer"
+        onError={(e) => { e.target.style.display = 'none'; }}
+      />
+      <p className="stea-loader-text">STEA AFRICA</p>
+      <div className="stea-loader-line"></div>
     </div>
   );
 }
@@ -525,14 +423,15 @@ function StarCanvas() {
   );
 }
 
-function TypedText() {
+function TypedText({ strings }) {
   const [txt, setTxt] = useState("");
   const st = useRef({ pi: 0, ci: 0, del: false });
+  const list = strings && strings.length > 0 ? strings : TYPED;
   useEffect(() => {
     let t;
     const tick = () => {
       const { pi, ci, del } = st.current;
-      const cur = TYPED[pi];
+      const cur = list[pi % list.length];
       if (!del) {
         setTxt(cur.slice(0, ci + 1));
         st.current.ci++;
@@ -545,14 +444,14 @@ function TypedText() {
         st.current.ci--;
         if (ci - 1 === 0) {
           st.current.del = false;
-          st.current.pi = (pi + 1) % TYPED.length;
+          st.current.pi = (pi + 1) % list.length;
           t = setTimeout(tick, 320);
         } else t = setTimeout(tick, 38);
       }
     };
     t = setTimeout(tick, 1400);
     return () => clearTimeout(t);
-  }, []);
+  }, [list]);
   return (
     <div
       style={{
@@ -1019,16 +918,10 @@ function Skeleton({ type = "card" }) {
 }
 
 // ── Article modal ─────────────────────────────────────
-function ArticleModal({ article, onClose, collection: col, waChannel }) {
-  const waLink = waChannel || WA_CHANNEL_DEFAULT;
+function ArticleModal({ article, onClose, collection: col }) {
   const [imgError, setImgError] = useState(false);
   const hasImage = article.imageUrl && !imgError;
   const isTips = col === "tips";
-
-  // Unified CTA Logic
-  const primaryText = article.primaryActionText || (article.useDefaultWhatsAppChannel !== false ? "Jiunge na WhatsApp Channel" : "");
-  const primaryLink = article.primaryActionLink || (article.useDefaultWhatsAppChannel !== false ? waLink : "");
-  const showShare = article.enableShare !== false;
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -1198,48 +1091,7 @@ function ArticleModal({ article, onClose, collection: col, waChannel }) {
               ))}
             </div>
           )}
-
-          {/* Creator Attribution */}
-          {article.showCreatorAttribution && article.creatorName && (
-            <div
-              style={{
-                marginTop: 32,
-                padding: 20,
-                borderRadius: 20,
-                background: "rgba(255,255,255,.03)",
-                border: "1px solid rgba(255,255,255,.08)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 16,
-                flexWrap: "wrap"
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,.05)", display: "grid", placeItems: "center", fontSize: 20 }}>
-                  👤
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,.45)", fontWeight: 600 }}>{article.creatorLabel || "Content by"}</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{article.creatorName}</div>
-                </div>
-              </div>
-              {article.creatorProfileLink && (
-                <button
-                  onClick={() => window.open(article.creatorProfileLink, "_blank")}
-                  style={{
-                    padding: "8px 16px", borderRadius: 12, border: "1px solid rgba(255,255,255,.1)",
-                    background: "rgba(255,255,255,.05)", color: "#fff", fontSize: 13, fontWeight: 700,
-                    cursor: "pointer"
-                  }}
-                >
-                  Visit Profile
-                </button>
-              )}
-            </div>
-          )}
-
-          {article.source && !article.showCreatorAttribution && (
+          {article.source && (
             <div
               style={{
                 marginTop: 16,
@@ -1262,37 +1114,77 @@ function ArticleModal({ article, onClose, collection: col, waChannel }) {
               paddingTop: 32,
             }}
           >
-            {primaryText && primaryLink && (
-              <button
-                onClick={() => window.open(primaryLink, "_blank")}
-                style={{
-                  padding: "14px 24px", borderRadius: 18,
-                  border: primaryLink.includes("whatsapp.com") ? "1px solid rgba(37,211,102,.3)" : `1px solid rgba(245,166,35,.3)`,
-                  background: primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.08)" : "rgba(245,166,35,.08)",
-                  color: primaryLink.includes("whatsapp.com") ? "#25d366" : G,
-                  fontWeight: 800, fontSize: 15,
-                  cursor: "pointer", display: "flex",
-                  alignItems: "center", justifyContent: "center", gap: 10,
-                  transition: "all .2s",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.16)" : "rgba(245,166,35,.16)"}
-                onMouseLeave={e => e.currentTarget.style.background = primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.08)" : "rgba(245,166,35,.08)"}
-              >
-                {primaryLink.includes("whatsapp.com") ? "📢" : "🚀"} {primaryText}
-              </button>
-            )}
-            
-            {isTips && !article.primaryActionLink && (
-              <GoldBtn
-                onClick={() => (window.location.hash = "#courses")}
-                style={{ justifyContent: "center", height: 50, borderRadius: 18 }}
-              >
-                🎓 Jiunge na Kozi
-              </GoldBtn>
-            )}
-
-            {showShare && (
-              <ShareButton title={article.title} style={{ height: 50, borderRadius: 18, justifyContent: "center" }} />
+            {isTips ? (
+              <>
+                <GoldBtn
+                  onClick={() => (window.location.hash = "#courses")}
+                  style={{ justifyContent: "center" }}
+                >
+                  🎓 Jiunge na Kozi
+                </GoldBtn>
+                <button
+                  onClick={() =>
+                    window.open(
+                      `https://wa.me/8619715852043?text=Habari%20STEA,%20nahitaji%20msaada%20kuhusu%20maujanja:%20${encodeURIComponent(article.title)}`,
+                      "_blank",
+                    )
+                  }
+                  style={{
+                    padding: "12px 20px",
+                    borderRadius: 16,
+                    border: "1px solid rgba(37,211,102,.3)",
+                    background: "rgba(37,211,102,.1)",
+                    color: "#25d366",
+                    fontWeight: 800,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  💬 WhatsApp Msaada
+                </button>
+              </>
+            ) : (
+              <>
+                <GoldBtn
+                  onClick={() =>
+                    window.open(
+                      "https://8a2374dd.sibforms.com/serve/MUIFAGZR8_KuVimiiaB4VRbn_jum3slVhVnj0whoh9aEwMBVNYx41VMz5boVmclj3oBfyTIx0eWvOtqoxrzUwuMs_WhmpapKONkACfI3eivQYqjywjxuCK-svny75AYLg3jmz8HZimADld83jxEQBzcucbx3sCeoVdk7yK-2hrL4nS7pbD-N8X7Rv03HiVnFeGUUQUCKIh5RNzbmtg==",
+                      "_blank",
+                    )
+                  }
+                  style={{ justifyContent: "center" }}
+                >
+                  📩 Newsletter
+                </GoldBtn>
+                <button
+                  onClick={() =>
+                    window.open(
+                      `https://wa.me/8619715852043?text=Habari%20STEA,%20nimeona%20habari%20hii:%20${encodeURIComponent(article.title)}`,
+                      "_blank",
+                    )
+                  }
+                  style={{
+                    padding: "12px 20px",
+                    borderRadius: 16,
+                    border: "1px solid rgba(37,211,102,.3)",
+                    background: "rgba(37,211,102,.1)",
+                    color: "#25d366",
+                    fontWeight: 800,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  💬 WhatsApp Discussion
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1302,15 +1194,8 @@ function ArticleModal({ article, onClose, collection: col, waChannel }) {
 }
 
 // ── Video modal ───────────────────────────────────────
-function VideoModal({ video, onClose, collection: col, waChannel }) {
-  const waLink = waChannel || WA_CHANNEL_DEFAULT;
+function VideoModal({ video, onClose, collection: col }) {
   const isTips = col === "tips";
-  
-  // Unified CTA logic
-  const primaryText = video.primaryActionText || (video.primaryActionLink?.includes("whatsapp.com") ? "Jiunge na WhatsApp Channel" : "Jiunge na STEA");
-  const primaryLink = video.primaryActionLink || (video.useDefaultWhatsAppChannel !== false ? waLink : null);
-  const showShare = video.enableShare !== false;
-
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -1543,53 +1428,6 @@ function VideoModal({ video, onClose, collection: col, waChannel }) {
             {video.title}
           </h3>
 
-          {/* Creator Attribution Section */}
-          {video.showCreatorAttribution && (
-            <div style={{ 
-              marginBottom: 24, 
-              padding: "16px", 
-              background: "rgba(255,255,255,.03)", 
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,.05)",
-              display: "flex",
-              alignItems: "center",
-              gap: 12
-            }}>
-              <div style={{ fontSize: 24 }}>👤</div>
-              <div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  {video.creatorLabel || "Imeandaliwa na"}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontWeight: 700, color: "#fff" }}>{video.creatorName || "STEA Creator"}</span>
-                  {video.creatorProfileLink && (
-                    <a 
-                      href={video.creatorProfileLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      style={{ 
-                        fontSize: 11, 
-                        color: G, 
-                        textDecoration: "none",
-                        background: "rgba(245,166,35,.1)",
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        fontWeight: 600
-                      }}
-                    >
-                      Follow
-                    </a>
-                  )}
-                </div>
-                {video.sourcePlatform && (
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,.3)", marginTop: 2 }}>
-                    Source: {video.sourcePlatform}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           <div
             style={{
               display: "flex",
@@ -1598,41 +1436,55 @@ function VideoModal({ video, onClose, collection: col, waChannel }) {
               marginTop: "auto",
             }}
           >
-            {primaryLink && (
-              <button
-                onClick={() => window.open(primaryLink, "_blank")}
-                style={{
-                  flex: 1,
-                  minWidth: 200,
-                  height: 50,
-                  borderRadius: 18,
-                  border: "none",
-                  background: primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.08)" : "rgba(245,166,35,.08)",
-                  color: primaryLink.includes("whatsapp.com") ? "#25D366" : G,
-                  fontWeight: 800, fontSize: 15,
-                  cursor: "pointer", display: "flex",
-                  alignItems: "center", justifyContent: "center", gap: 10,
-                  transition: "all .2s",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.16)" : "rgba(245,166,35,.16)"}
-                onMouseLeave={e => e.currentTarget.style.background = primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.08)" : "rgba(245,166,35,.08)"}
-              >
-                {primaryLink.includes("whatsapp.com") ? "📢" : "🚀"} {primaryText}
-              </button>
-            )}
-            
-            {isTips && !video.primaryActionLink && (
+            {isTips ? (
               <GoldBtn
-                onClick={() => (window.location.hash = "#courses")}
-                style={{ justifyContent: "center", height: 50, borderRadius: 18, flex: 1 }}
+                onClick={() => {
+                  onClose();
+                  window.location.hash = "#courses";
+                }}
+                style={{ padding: "12px 24px" }}
               >
                 🎓 Jiunge na Kozi
               </GoldBtn>
+            ) : (
+              <GoldBtn
+                onClick={() =>
+                  window.open(
+                    "https://8a2374dd.sibforms.com/serve/MUIFAGZR8_KuVimiiaB4VRbn_jum3slVhVnj0whoh9aEwMBVNYx41VMz5boVmclj3oBfyTIx0eWvOtqoxrzUwuMs_WhmpapKONkACfI3eivQYqjywjxuCK-svny75AYLg3jmz8HZimADld83jxEQBzcucbx3sCeoVdk7yK-2hrL4nS7pbD-N8X7Rv03HiVnFeGUUQUCKIh5RNzbmtg==",
+                    "_blank",
+                  )
+                }
+                style={{ padding: "12px 24px" }}
+              >
+                📩 Newsletter
+              </GoldBtn>
             )}
-
-            {showShare && (
-              <ShareButton title={video.title} style={{ height: 50, borderRadius: 18, justifyContent: "center", flex: 1 }} />
-            )}
+            <button
+              onClick={() =>
+                window.open(
+                  `https://wa.me/8619715852043?text=Habari%20STEA,%20nimeona%20video%20hii:%20${encodeURIComponent(video.title)}`,
+                  "_blank",
+                )
+              }
+              style={{
+                padding: "12px 24px",
+                borderRadius: 16,
+                border: "1px solid rgba(37,211,102,.3)",
+                background: "rgba(37,211,102,.1)",
+                color: "#25d366",
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                transition: "all 0.2s",
+              }}
+            >
+              <MessageCircle size={18} />
+              WhatsApp Discussion
+            </button>
           </div>
         </div>
       </motion.div>
@@ -1793,9 +1645,30 @@ function ArticleCard({ item, onRead, collection: col }) {
               justifyContent: "center",
             }}
           >
-            {item.primaryActionText || "📖 Soma Zaidi"}
+            📖 Soma Zaidi
           </GoldBtn>
-          <ShareButton title={item.title} />
+          <button
+            onClick={() =>
+              window.open(
+                `https://wa.me/8619715852043?text=Habari%20STEA,%20nahitaji%20msaada%20kuhusu%20maujanja:%20${encodeURIComponent(item.title)}`,
+                "_blank",
+              )
+            }
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              border: "1px solid rgba(37,211,102,.3)",
+              background: "rgba(37,211,102,.1)",
+              color: "#25d366",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <MessageCircle size={18} />
+          </button>
         </div>
       </div>
     </TiltCard>
@@ -1978,9 +1851,30 @@ function VideoCard({ item, onPlay, collection: col }) {
               justifyContent: "center",
             }}
           >
-            {item.primaryActionText || "▶ Tazama Sasa"}
+            ▶ Tazama Sasa
           </GoldBtn>
-          <ShareButton title={item.title} />
+          <button
+            onClick={() =>
+              window.open(
+                `https://wa.me/8619715852043?text=Habari%20STEA,%20nimeona%20video%20hii:%20${encodeURIComponent(item.title)}`,
+                "_blank",
+              )
+            }
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              border: "1px solid rgba(37,211,102,.3)",
+              background: "rgba(37,211,102,.1)",
+              color: "#25d366",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <MessageCircle size={16} />
+          </button>
         </div>
       </div>
     </TiltCard>
@@ -2018,7 +1912,7 @@ function AuthModal({ onClose, onUser }) {
       const r = doc(db, "users", user.uid);
       const s = await getDoc(r);
       let role =
-        isAdminEmail(user.email)
+        user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
           ? "admin"
           : s.exists()
             ? s.data().role || "user"
@@ -2035,11 +1929,10 @@ function AuthModal({ onClose, onUser }) {
       onUser({ ...user, role });
     } catch (err) {
       console.error("Error saving user:", err);
-      handleFirestoreError(err, OperationType.WRITE, "users");
       onUser({
         ...user,
         role:
-          isAdminEmail(user.email)
+          user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
             ? "admin"
             : "user",
       });
@@ -2508,7 +2401,7 @@ function AuthModal({ onClose, onUser }) {
 }
 
 // ── User Chip ─────────────────────────────────────────
-function UserChip({ user, onLogout, onAdmin, onProfile }) {
+function UserChip({ user, onLogout, onAdmin }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -2536,10 +2429,9 @@ function UserChip({ user, onLogout, onAdmin, onProfile }) {
           display: "grid",
           placeItems: "center",
           flexShrink: 0,
-          overflow: "hidden",
         }}
       >
-        {user.photoURL ? <img src={user.photoURL} alt="Profile" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : ini}
+        {ini}
       </button>
       {open && (
         <div
@@ -2594,27 +2486,6 @@ function UserChip({ user, onLogout, onAdmin, onProfile }) {
               </span>
             )}
           </div>
-          <button
-            onClick={() => {
-              if (onProfile) onProfile();
-              setOpen(false);
-            }}
-            style={{
-              width: "100%",
-              marginBottom: 8,
-              padding: "10px 14px",
-              borderRadius: 12,
-              border: "none",
-              background: "rgba(255,255,255,.05)",
-              color: "#fff",
-              fontWeight: 800,
-              cursor: "pointer",
-              textAlign: "left",
-              fontSize: 14,
-            }}
-          >
-            👤 My Profile
-          </button>
           {user.role === "admin" && (
             <button
               onClick={() => {
@@ -2667,7 +2538,7 @@ function UserChip({ user, onLogout, onAdmin, onProfile }) {
 // ════════════════════════════════════════════════════
 // LIVE DATA PAGES
 // ════════════════════════════════════════════════════
-function TechContentPage({ defaultTab = "tips", waChannel }) {
+function TechContentPage({ defaultTab = "tips" }) {
   const activeTab = defaultTab;
   const [filter, setFilter] = useState("all");
 
@@ -2685,30 +2556,8 @@ function TechContentPage({ defaultTab = "tips", waChannel }) {
   const [art, setArt] = useState(null);
   const [vid, setVid] = useState(null);
 
-  // Merge both collections to ensure no content is missed even if saved in the wrong collection
-  // Then sort by createdAt descending
-  const allDocs = [...tipsDocs, ...updatesDocs].sort((a, b) => {
-    const da = a.createdAt?.seconds || 0;
-    const db = b.createdAt?.seconds || 0;
-    return db - da;
-  });
-
-  const filteredDocs = allDocs
-    .filter((d) => {
-      const isTip = d.sectionType === "techTips" || d.category === "tech-tips";
-      const isUpdate =
-        d.sectionType === "techUpdates" || d.category === "tech-updates";
-
-      // Strict filtering based on activeTab as requested by user
-      if (activeTab === "tips") {
-        // In Tips section: Hide if it's explicitly an update
-        if (isUpdate && !isTip) return false;
-        return true; // Show tips and legacy content
-      } else {
-        // In Updates section: Show ONLY if it's explicitly an update
-        return isUpdate;
-      }
-    })
+  // Use the collection source as the primary indicator, fallback to category
+  const filteredDocs = (activeTab === "tips" ? tipsDocs : updatesDocs)
     .filter((d) => {
       if (filter === "all") return true;
       if (filter === "article") return d.type === "article" || !d.type;
@@ -2728,7 +2577,6 @@ function TechContentPage({ defaultTab = "tips", waChannel }) {
                 ? "tips"
                 : "updates"
             }
-            waChannel={waChannel}
           />
         )}
         {vid && (
@@ -2740,7 +2588,6 @@ function TechContentPage({ defaultTab = "tips", waChannel }) {
                 ? "tips"
                 : "updates"
             }
-            waChannel={waChannel}
           />
         )}
 
@@ -2837,11 +2684,11 @@ function TechContentPage({ defaultTab = "tips", waChannel }) {
                   marginBottom: 8,
                 }}
               >
-                Hakuna Content
+                Hakuna Content Bado
               </div>
-              <div style={{ fontSize: 14 }}>
-                Hakuna {filter === "all" ? "content" : filter + "s"} kwenye
-                sehemu hii kwa sasa.
+              <div style={{ fontSize: 14, maxWidth: 400, margin: "0 auto", lineHeight: 1.6 }}>
+                Sehemu hii ya {activeTab === "tips" ? "Tech Tips" : "Tech Updates"} haina content kwa sasa. 
+                Kama wewe ni admin, tafadhali ongeza content kupitia <strong>Admin Panel</strong>.
               </div>
             </div>
           )}
@@ -3000,9 +2847,24 @@ function DealsPage() {
             gap: 24,
           }}
         >
-          {loading
-            ? [1, 2, 3].map((i) => <Skeleton key={i} />)
-            : deals.map((d, i) => <DealCard key={d.id || i} d={d} i={i} />)}
+          {loading ? (
+            [1, 2, 3].map((i) => <Skeleton key={i} />)
+          ) : deals.length > 0 ? (
+            deals.map((d, i) => <DealCard key={d.id || i} d={d} i={i} />)
+          ) : (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                padding: 60,
+                textAlign: "center",
+                background: "rgba(255,255,255,.02)",
+                borderRadius: 24,
+                color: "rgba(255,255,255,.4)",
+              }}
+            >
+              Hakuna Deals kwa sasa.
+            </div>
+          )}
         </div>
       </W>
     </section>
@@ -3246,11 +3108,26 @@ function CoursesPage({ goPage }) {
             marginBottom: 80,
           }}
         >
-          {loading
-            ? [1, 2, 3].map((i) => <Skeleton key={i} />)
-            : courses.map((c, i) => (
-                <CourseListItem key={c.id || i} c={c} goPage={goPage} />
-              ))}
+          {loading ? (
+            [1, 2, 3].map((i) => <Skeleton key={i} />)
+          ) : courses.length > 0 ? (
+            courses.map((c, i) => (
+              <CourseListItem key={c.id || i} c={c} goPage={goPage} />
+            ))
+          ) : (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                padding: 60,
+                textAlign: "center",
+                background: "rgba(255,255,255,.02)",
+                borderRadius: 24,
+                color: "rgba(255,255,255,.4)",
+              }}
+            >
+              Hakuna Courses kwa sasa.
+            </div>
+          )}
         </div>
 
         {/* Trust Section: Why STEA? */}
@@ -4316,9 +4193,24 @@ function DukaPage() {
             gap: 22,
           }}
         >
-          {loading
-            ? [1, 2, 3].map((i) => <Skeleton key={i} />)
-            : products.map((p, i) => <ProductCard key={p.id || i} p={p} />)}
+          {loading ? (
+            [1, 2, 3].map((i) => <Skeleton key={i} />)
+          ) : products.length > 0 ? (
+            products.map((p, i) => <ProductCard key={p.id || i} p={p} />)
+          ) : (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                padding: 60,
+                textAlign: "center",
+                background: "rgba(255,255,255,.02)",
+                borderRadius: 24,
+                color: "rgba(255,255,255,.4)",
+              }}
+            >
+              Hakuna bidhaa kwenye Duka kwa sasa.
+            </div>
+          )}
         </div>
       </W>
     </section>
@@ -4452,9 +4344,24 @@ function WebsitesPage() {
             gap: 22,
           }}
         >
-          {loading
-            ? [1, 2, 3].map((i) => <Skeleton key={i} />)
-            : websites.map((w, i) => <WebsiteCard key={w.id || i} w={w} />)}
+          {loading ? (
+            [1, 2, 3].map((i) => <Skeleton key={i} />)
+          ) : websites.length > 0 ? (
+            websites.map((w, i) => <WebsiteCard key={w.id || i} w={w} />)
+          ) : (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                padding: 60,
+                textAlign: "center",
+                background: "rgba(255,255,255,.02)",
+                borderRadius: 24,
+                color: "rgba(255,255,255,.4)",
+              }}
+            >
+              Hakuna Websites kwa sasa.
+            </div>
+          )}
         </div>
       </W>
     </section>
@@ -5100,17 +5007,32 @@ function PromptLabPage() {
             gap: 24,
           }}
         >
-          {loading
-            ? [1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} type="prompt" />)
-            : prompts.map((p) => (
-                <PromptCard
-                  key={p.id}
-                  p={p}
-                  setSel={setSel}
-                  handleCopy={handleCopy}
-                  copiedId={copiedId}
-                />
-              ))}
+          {loading ? (
+            [1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} type="prompt" />)
+          ) : prompts.length > 0 ? (
+            prompts.map((p) => (
+              <PromptCard
+                key={p.id}
+                p={p}
+                setSel={setSel}
+                handleCopy={handleCopy}
+                copiedId={copiedId}
+              />
+            ))
+          ) : (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                padding: 60,
+                textAlign: "center",
+                background: "rgba(255,255,255,.02)",
+                borderRadius: 24,
+                color: "rgba(255,255,255,.4)",
+              }}
+            >
+              Hakuna Prompts kwa sasa.
+            </div>
+          )}
         </div>
       </W>
     </section>
@@ -5144,7 +5066,6 @@ function SupportForm() {
       confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
     } catch (err) {
       console.error(err);
-      handleFirestoreError(err, OperationType.WRITE, "support_messages");
       alert("Samahani, imeshindikana kutuma ujumbe.");
     } finally {
       setLoading(false);
@@ -5575,24 +5496,6 @@ function CreatorSection({ goPage, siteSettings }) {
                     pointerEvents: "none",
                   }}
                 />
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: 20,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    background: G,
-                    color: "#000",
-                    padding: "4px 16px",
-                    borderRadius: 99,
-                    fontWeight: 900,
-                    fontSize: 14,
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                  }}
-                >
-                  CEO
-                </div>
                 
                 {/* Info Overlay */}
                 <div
@@ -6217,7 +6120,7 @@ function FeaturedDeal({ featuredDeal }) {
               {featuredDeal.badge}
             </span>
             <h3 style={{ fontSize: 20, margin: "8px 0 12px" }}>
-              {featuredDeal.title}
+              {featuredDeal.name}
             </h3>
             <div
               style={{
@@ -6227,11 +6130,18 @@ function FeaturedDeal({ featuredDeal }) {
                 marginBottom: 16,
               }}
             >
-              {featuredDeal.price}
+              {featuredDeal.newPrice}
             </div>
             <div style={{ marginTop: "auto" }}>
               <GoldBtn
-                onClick={() => window.open(featuredDeal.affiliateUrl)}
+                onClick={() =>
+                  window.open(
+                    featuredDeal.affiliateLink ||
+                      featuredDeal.directLink ||
+                      featuredDeal.whatsappLink,
+                    "_blank",
+                  )
+                }
                 style={{ fontSize: 12, padding: "10px 20px" }}
               >
                 Buy Now
@@ -6244,7 +6154,7 @@ function FeaturedDeal({ featuredDeal }) {
   );
 }
 
-function HomePage({ goPage, siteSettings }) {
+function HomePage({ goPage, settings = {} }) {
   const { docs: tips, loading: tipsLoading } = useCollection(
     "tips",
     "createdAt",
@@ -6260,6 +6170,7 @@ function HomePage({ goPage, siteSettings }) {
     "prompts",
     "createdAt",
   );
+  const { docs: websites } = useCollection("websites", "createdAt");
 
   const [art, setArt] = useState(null);
   const [vid, setVid] = useState(null);
@@ -6268,29 +6179,10 @@ function HomePage({ goPage, siteSettings }) {
   const featuredPrompt = prompts.length > 0 ? prompts[0] : null;
   const featuredDeal = deals.length > 0 ? deals[0] : null;
 
-  // Merge and sort to ensure visibility across collections
-  const allTech = [...tips, ...updates].sort((a, b) => {
-    const da = a.createdAt?.seconds || 0;
-    const db = b.createdAt?.seconds || 0;
-    return db - da;
-  });
-
-  const featuredTips = allTech
-    .filter((d) => {
-      const isUpdate =
-        d.category === "tech-updates" || d.sectionType === "techUpdates";
-      const isTip = d.category === "tech-tips" || d.sectionType === "techTips";
-      return isTip || !isUpdate; // Prioritize tips, allow legacy
-    })
-    .slice(0, 3);
-
-  const featuredUpdates = allTech
-    .filter((d) => {
-      const isUpdate =
-        d.category === "tech-updates" || d.sectionType === "techUpdates";
-      return isUpdate; // Strict for updates as requested
-    })
-    .slice(0, 3);
+  // Relaxed filtering: If it's in the 'tips' collection, it's a tip. 
+  // If it's in 'updates', it's an update.
+  const featuredTips = tips.slice(0, 3);
+  const featuredUpdates = updates.slice(0, 3);
 
   const featuredCourses = courses.length > 0 ? courses.slice(0, 3) : [];
 
@@ -6306,7 +6198,6 @@ function HomePage({ goPage, siteSettings }) {
                 ? "tips"
                 : "updates"
             }
-            waChannel={siteSettings?.whatsapp_channel?.link}
           />
         )}
         {vid && (
@@ -6318,7 +6209,6 @@ function HomePage({ goPage, siteSettings }) {
                 ? "tips"
                 : "updates"
             }
-            waChannel={siteSettings?.whatsapp_channel?.link}
           />
         )}
 
@@ -6386,7 +6276,9 @@ function HomePage({ goPage, siteSettings }) {
                 margin: "0 0 14px",
               }}
             >
-              <span style={{ display: "block" }}>SwahiliTech</span>
+              <span style={{ display: "block" }}>
+                {settings.hero?.title1 || "SwahiliTech"}
+              </span>
               <span
                 style={{
                   display: "block",
@@ -6395,7 +6287,7 @@ function HomePage({ goPage, siteSettings }) {
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                Elite Academy
+                {settings.hero?.title2 || "Elite Academy"}
               </span>
             </h1>
             <div
@@ -6407,9 +6299,9 @@ function HomePage({ goPage, siteSettings }) {
                 margin: "0 0 6px",
               }}
             >
-              Teknolojia kwa Kiswahili 🇹🇿
+              {settings.hero?.topSubtitle || "Teknolojia kwa Kiswahili 🇹🇿"}
             </div>
-            <TypedText />
+            <TypedText strings={settings.hero?.typedStrings} />
             <p
               style={{
                 maxWidth: 560,
@@ -6420,9 +6312,8 @@ function HomePage({ goPage, siteSettings }) {
                 fontWeight: 500,
               }}
             >
-              STEA inaleta tech tips, updates, deals, electronics, na kozi za
-              kisasa kwa lugha rahisi ya Kiswahili — platform ya kwanza ya tech
-              kwa Watanzania.
+              {settings.hero?.subtitle ||
+                "STEA inaleta tech tips, updates, deals, electronics, na kozi za kisasa kwa lugha rahisi ya Kiswahili — platform ya kwanza ya tech kwa Watanzania."}
             </p>
             <p
               style={{
@@ -6433,8 +6324,8 @@ function HomePage({ goPage, siteSettings }) {
                 letterSpacing: "-0.01em",
               }}
             >
-              “Mwaka 2026 ni mwaka wako wa kupata pesa kupitia skills za
-              teknolojia.”
+              {settings.hero?.quote ||
+                "“Mwaka 2026 ni mwaka wako wa kupata pesa kupitia skills za teknolojia.”"}
             </p>
             <div
               style={{
@@ -6550,25 +6441,41 @@ function HomePage({ goPage, siteSettings }) {
               gap: 22,
             }}
           >
-            {tipsLoading
-              ? [1, 2, 3].map((i) => <Skeleton key={i} />)
-              : featuredTips.map((item) =>
-                  item.type === "video" ? (
-                    <VideoCard
-                      key={item.id}
-                      item={item}
-                      onPlay={setVid}
-                      collection="tips"
-                    />
-                  ) : (
-                    <ArticleCard
-                      key={item.id}
-                      item={item}
-                      onRead={setArt}
-                      collection="tips"
-                    />
-                  ),
-                )}
+            {tipsLoading ? (
+              [1, 2, 3].map((i) => <Skeleton key={i} />)
+            ) : featuredTips.length > 0 ? (
+              featuredTips.map((item) =>
+                item.type === "video" ? (
+                  <VideoCard
+                    key={item.id}
+                    item={item}
+                    onPlay={setVid}
+                    collection="tips"
+                  />
+                ) : (
+                  <ArticleCard
+                    key={item.id}
+                    item={item}
+                    onRead={setArt}
+                    collection="tips"
+                  />
+                ),
+              )
+            ) : (
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: 40,
+                  textAlign: "center",
+                  background: "rgba(255,255,255,.02)",
+                  borderRadius: 20,
+                  color: "rgba(255,255,255,.4)",
+                  fontSize: 14,
+                }}
+              >
+                Hakuna Tech Tips bado.
+              </div>
+            )}
           </div>
         </div>
 
@@ -6611,16 +6518,32 @@ function HomePage({ goPage, siteSettings }) {
               gap: 22,
             }}
           >
-            {updatesLoading
-              ? [1, 2, 3].map((i) => <Skeleton key={i} />)
-              : featuredUpdates.map((item) => (
-                  <ArticleCard
-                    key={item.id}
-                    item={item}
-                    onRead={setArt}
-                    collection="updates"
-                  />
-                ))}
+            {updatesLoading ? (
+              [1, 2, 3].map((i) => <Skeleton key={i} />)
+            ) : featuredUpdates.length > 0 ? (
+              featuredUpdates.map((item) => (
+                <ArticleCard
+                  key={item.id}
+                  item={item}
+                  onRead={setArt}
+                  collection="updates"
+                />
+              ))
+            ) : (
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: 40,
+                  textAlign: "center",
+                  background: "rgba(255,255,255,.02)",
+                  borderRadius: 20,
+                  color: "rgba(255,255,255,.4)",
+                  fontSize: 14,
+                }}
+              >
+                Hakuna Tech Updates bado.
+              </div>
+            )}
           </div>
         </div>
 
@@ -6663,9 +6586,25 @@ function HomePage({ goPage, siteSettings }) {
               gap: 24,
             }}
           >
-            {featuredCourses.map((c) => (
-              <CourseCard key={c.id} item={c} goPage={goPage} />
-            ))}
+            {featuredCourses.length > 0 ? (
+              featuredCourses.map((c) => (
+                <CourseCard key={c.id} item={c} goPage={goPage} />
+              ))
+            ) : (
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: 40,
+                  textAlign: "center",
+                  background: "rgba(255,255,255,.02)",
+                  borderRadius: 20,
+                  color: "rgba(255,255,255,.4)",
+                  fontSize: 14,
+                }}
+              >
+                Hakuna Courses bado.
+              </div>
+            )}
           </div>
         </div>
 
@@ -6724,7 +6663,7 @@ function HomePage({ goPage, siteSettings }) {
           {promptsLoading ? (
             <Skeleton type="prompt" />
           ) : (
-            featuredPrompt && (
+            featuredPrompt ? (
               <TiltCard>
                 <div
                   style={{
@@ -6813,12 +6752,25 @@ function HomePage({ goPage, siteSettings }) {
                   </GoldBtn>
                 </div>
               </TiltCard>
+            ) : (
+              <div
+                style={{
+                  padding: 40,
+                  textAlign: "center",
+                  background: "rgba(255,255,255,.02)",
+                  borderRadius: 20,
+                  color: "rgba(255,255,255,.4)",
+                  fontSize: 14,
+                }}
+              >
+                Hakuna Featured Prompt kwa sasa.
+              </div>
             )
           )}
         </div>
 
         {/* Featured Deal */}
-        {featuredDeal && (
+        {featuredDeal ? (
           <div
             style={{
               marginTop: 80,
@@ -6875,6 +6827,20 @@ function HomePage({ goPage, siteSettings }) {
               <FeaturedDeal featuredDeal={featuredDeal} />
             </div>
           </div>
+        ) : (
+          <div
+            style={{
+              marginTop: 80,
+              padding: 40,
+              textAlign: "center",
+              background: "rgba(255,255,255,.02)",
+              borderRadius: 20,
+              color: "rgba(255,255,255,.4)",
+              fontSize: 14,
+            }}
+          >
+            Hakuna Hot Deal kwa sasa. Angalia Deals zote hapa chini.
+          </div>
         )}
 
         {/* Duka Products */}
@@ -6912,67 +6878,91 @@ function HomePage({ goPage, siteSettings }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
-              gap: 16,
+              gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))",
+              gap: 22,
             }}
           >
-            {products.slice(0, 4).map((p) => (
+            {products.length > 0 ? (
+              products.slice(0, 4).map((p) => (
+                <ProductCard key={p.id} p={p} />
+              ))
+            ) : (
               <div
-                key={p.id}
                 style={{
-                  background: "rgba(255,255,255,.03)",
-                  borderRadius: 16,
-                  padding: 16,
-                  border: "1px solid rgba(255,255,255,.05)",
+                  gridColumn: "1 / -1",
+                  padding: 40,
+                  textAlign: "center",
+                  background: "rgba(255,255,255,.02)",
+                  borderRadius: 20,
+                  color: "rgba(255,255,255,.4)",
+                  fontSize: 14,
                 }}
               >
-                <img
-                  src={p.imageUrl}
-                  alt={p.name}
-                  style={{
-                    width: "100%",
-                    aspectRatio: "1/1",
-                    objectFit: "cover",
-                    borderRadius: 12,
-                    marginBottom: 12,
-                  }}
-                  referrerPolicy="no-referrer"
-                />
-                <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
-                  {p.name}
-                </h4>
-                <p style={{ fontSize: 13, color: G, fontWeight: 800 }}>
-                  TZS {p.price}
-                </p>
+                Hakuna Bidhaa bado.
               </div>
-            ))}
+            )}
           </div>
         </div>
 
         {/* Websites section */}
-        <div
-          style={{
-            marginTop: 80,
-            padding: 40,
-            borderRadius: 32,
-            border: "1px solid rgba(255,255,255,.05)",
-            background: "rgba(255,255,255,.02)",
-            textAlign: "center",
-          }}
-        >
-          <h2
+        <div style={{ marginTop: 80 }}>
+          <div
             style={{
-              fontFamily: "'Bricolage Grotesque',sans-serif",
-              fontSize: 32,
-              marginBottom: 16,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              marginBottom: 24,
+              gap: 16,
+              flexWrap: "wrap",
             }}
           >
-            Websites za Siri 🤫
-          </h2>
-          <p style={{ color: "rgba(255,255,255,.6)", marginBottom: 24 }}>
-            Gundua websites ambazo watu wengi hawazijui…
-          </p>
-          <GoldBtn onClick={() => goPage("websites")}>Gundua Sasa →</GoldBtn>
+            <SHead
+              title="Websites"
+              hi="STEA Web Solutions"
+              copy="Gundua websites bora na za siri ambazo watu wengi hawazijui..."
+            />
+            <button
+              onClick={() => goPage("websites")}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: G,
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: "pointer",
+                padding: "10px 0",
+              }}
+            >
+              View All Websites →
+            </button>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))",
+              gap: 22,
+            }}
+          >
+            {websites && websites.length > 0 ? (
+              websites.slice(0, 3).map((w) => (
+                <WebsiteCard key={w.id} w={w} />
+              ))
+            ) : (
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: 40,
+                  textAlign: "center",
+                  background: "rgba(255,255,255,.02)",
+                  borderRadius: 20,
+                  color: "rgba(255,255,255,.4)",
+                  fontSize: 14,
+                }}
+              >
+                Hakuna Websites bado.
+              </div>
+            )}
+          </div>
         </div>
 
         <div
@@ -7028,97 +7018,6 @@ function HomePage({ goPage, siteSettings }) {
   );
 }
 
-export const compressImage = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 600;
-        let width = img.width;
-        let height = img.height;
-        if (width > height) {
-          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-        } else {
-          if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
-        }
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
-      };
-      img.onerror = reject;
-    };
-    reader.onerror = reject;
-  });
-};
-
-function UserProfileModal({user, onClose, onUpdate}){
-  const [name, setName] = useState(user.displayName || user.name || "");
-  const [photo, setPhoto] = useState(user.photoURL || "");
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  const saveProfile = async () => {
-    setLoading(true);
-    setMsg("");
-    try {
-      const db = getFirebaseDb();
-      await setDoc(doc(db, "users", user.uid), { name, photoURL: photo }, { merge: true });
-      onUpdate({ ...user, displayName: name, name, photoURL: photo });
-      setMsg("✅ Profile imehifadhiwa!");
-      setTimeout(onClose, 1500);
-    } catch(e) {
-      handleFirestoreError(e, OperationType.WRITE, "users");
-      setMsg("⚠️ " + e.message);
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,zIndex:800,background:"rgba(4,5,9,.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{width:"min(420px,100%)",borderRadius:24,border:"1px solid rgba(255,255,255,.12)",background:"rgba(16,18,28,.98)",padding:28,boxShadow:"0 24px 60px rgba(0,0,0,.5)",position:"relative"}}>
-        <button onClick={onClose} style={{position:"absolute",right:16,top:16,zIndex:20,width:32,height:32,borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.06)",color:"#fff",cursor:"pointer",fontSize:16}}>✕</button>
-        <h2 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:24,margin:"0 0 20px"}}>👤 My Profile</h2>
-        
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,marginBottom:24}}>
-          <div style={{width:90,height:90,borderRadius:"50%",background:"rgba(255,255,255,.05)",border:`2px solid #F5A623`,overflow:"hidden",display:"grid",placeItems:"center",fontSize:32,color:"#F5A623"}}>
-            {photo ? <img src={photo} alt="Profile" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : (name||"S")[0].toUpperCase()}
-          </div>
-          <label style={{cursor:"pointer",fontSize:13,fontWeight:800,color:"#111",background:"#F5A623",padding:"6px 14px",borderRadius:99}}>
-            📷 Badili Picha
-            <input type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
-              if(e.target.files && e.target.files[0]){
-                const base64 = await compressImage(e.target.files[0]);
-                setPhoto(base64);
-              }
-            }}/>
-          </label>
-        </div>
-
-        <div style={{display:"grid",gap:16,marginBottom:24}}>
-          <div>
-            <label style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,.5)",textTransform:"uppercase",marginBottom:6,display:"block"}}>Jina (Display Name)</label>
-            <input value={name} onChange={e=>setName(e.target.value)} style={{width:"100%",height:46,borderRadius:12,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.05)",color:"#fff",padding:"0 14px",outline:"none",fontSize:15}} />
-          </div>
-          <div>
-            <label style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,.5)",textTransform:"uppercase",marginBottom:6,display:"block"}}>Email</label>
-            <input value={user.email} disabled style={{width:"100%",height:46,borderRadius:12,border:"1px solid rgba(255,255,255,.05)",background:"rgba(255,255,255,.02)",color:"rgba(255,255,255,.4)",padding:"0 14px",outline:"none",fontSize:15}} />
-          </div>
-        </div>
-
-        {msg && <div style={{padding:12,borderRadius:12,background:"rgba(255,255,255,.05)",color:"#fff",fontSize:14,textAlign:"center",marginBottom:20}}>{msg}</div>}
-
-        <button onClick={saveProfile} disabled={loading} style={{width:"100%",height:48,borderRadius:12,background:"#F5A623",color:"#111",fontWeight:800,fontSize:15,border:"none",cursor:loading?"not-allowed":"pointer",opacity:loading?.7:1}}>{loading?"Inahifadhi...":"Hifadhi Profile"}</button>
-      </div>
-    </div>
-  );
-}
-
 // ════════════════════════════════════════════════════
 // ROOT APP
 // ════════════════════════════════════════════════════
@@ -7128,7 +7027,6 @@ export default function App() {
   const [transitioning, setTransitioning] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [user, setUser] = useState(null);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -7146,21 +7044,15 @@ export default function App() {
     const t = setTimeout(() => setLoaded(true), 2200);
     const db = getFirebaseDb();
     if (!db) return;
-    const unsubs = ["about_us", "about_creator", "contact_info", "stats", "whatsapp_channel"].map(id => 
+    const unsubs = ["about_us", "about_creator", "contact_info", "stats", "hero"].map(id => 
       onSnapshot(doc(db, "site_settings", id), (snap) => {
         if (snap.exists()) {
           setSiteSettings(prev => ({ ...prev, [id]: snap.data().data }));
         }
-      }, (err) => {
-        console.warn(`Non-critical error loading site_settings/${id}:`, err.message);
-        // We don't throw here to avoid crashing the app for non-critical settings
       })
     );
     const faqUnsub = onSnapshot(query(collection(db, "faqs"), orderBy("order", "asc")), (snap) => {
       setFaqs(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(f => f.isActive));
-    }, (err) => {
-      console.warn("Non-critical error loading faqs:", err.message);
-      // We don't throw here to avoid crashing the app
     });
     const unsub = onAuthStateChanged(getFirebaseAuth(), async (u) => {
       if (u) {
@@ -7232,9 +7124,9 @@ export default function App() {
   };
 
   const PAGES = {
-    home: <HomePage goPage={goPage} siteSettings={siteSettings} />,
-    tips: <TechContentPage key="tips" defaultTab="tips" waChannel={siteSettings?.whatsapp_channel?.link} />,
-    habari: <TechContentPage key="updates" defaultTab="updates" waChannel={siteSettings?.whatsapp_channel?.link} />,
+    home: <HomePage goPage={goPage} settings={siteSettings} />,
+    tips: <TechContentPage key="tips" defaultTab="tips" />,
+    habari: <TechContentPage key="updates" defaultTab="updates" />,
     prompts: <PromptLabPage />,
     deals: <DealsPage />,
     courses: <CoursesPage goPage={goPage} />,
@@ -7279,7 +7171,7 @@ export default function App() {
               "radial-gradient(circle at 14% 12%,rgba(245,166,35,.12),transparent 18%),radial-gradient(circle at 84% 22%,rgba(86,183,255,.12),transparent 20%),linear-gradient(180deg,#05060a,#080a11)",
           }}
         >
-          <style>{`@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&family=Instrument+Sans:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}@keyframes blink{50%{opacity:0}}@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes logoPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.45)}50%{box-shadow:0 0 0 18px rgba(245,166,35,0)}}@keyframes loadBar{0%{width:0%}60%{width:65%}100%{width:100%}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}input::placeholder{color:rgba(255,255,255,.28)}a{text-decoration:none;color:inherit}nav::-webkit-scrollbar{display:none}.stea-navbar-logo{width:38px!important;height:38px!important;min-width:38px!important;max-width:38px!important;max-height:38px!important;object-fit:contain!important;flex-shrink:0!important;border-radius:10px}.stea-footer-logo{height:52px!important;max-height:52px!important;width:auto!important;max-width:200px!important;object-fit:contain!important}img{max-width:100%}.course-list-item{display:flex;flex-direction:column;height:100%}.course-img-container{aspect-ratio:16/9;width:100%;border-bottom:1px solid rgba(255,255,255,.05)}.course-hero{display:grid;grid-template-columns:1fr;gap:30px}.course-hero-img{aspect-ratio:16/9;width:100%}@media(max-width:900px){#desktopNav{display:none!important}.stea-navbar-logo{width:32px!important;height:32px!important;min-width:32px!important;max-width:32px!important}}@media(min-width:901px){#hamburger{display:none!important}}@media(min-width:900px){.course-hero{grid-template-columns:1.2fr 1fr;gap:60px;align-items:center}.course-hero-img{aspect-ratio:16/9}}`}</style>
+          <style>{`@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&family=Instrument+Sans:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}@keyframes blink{50%{opacity:0}}@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes logoPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,166,35,.45)}50%{box-shadow:0 0 0 18px rgba(245,166,35,0)}}@keyframes steaGlow{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes steaEntrance{from{opacity:0;transform:scale(0.75)}to{opacity:1;transform:scale(1)}}@keyframes steaPulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 0px rgba(245,166,35,0))}50%{transform:scale(1.04);filter:drop-shadow(0 0 18px rgba(245,166,35,0.35))}}@keyframes loadBar{0%{width:0%}60%{width:65%}100%{width:100%}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(245,166,35,.28);border-radius:3px}input::placeholder{color:rgba(255,255,255,.28)}a{text-decoration:none;color:inherit}nav::-webkit-scrollbar{display:none}@media(max-width:900px){#desktopNav{display:none!important}}@media(min-width:901px){#hamburger{display:none!important}}.course-list-item{display:flex;flex-direction:column;height:100%}.course-img-container{aspect-ratio:16/9;width:100%;border-bottom:1px solid rgba(255,255,255,.05)}.course-hero{display:grid;grid-template-columns:1fr;gap:30px}.course-hero-img{aspect-ratio:16/9;width:100%}@media(min-width:900px){.course-hero{grid-template-columns:1.2fr 1fr;gap:60px;align-items:center}.course-hero-img{aspect-ratio:16/9}}`}</style>
 
           <LoadingScreen done={loaded} />
 
@@ -7456,15 +7348,12 @@ export default function App() {
                   userSelect: "none",
                 }}
               >
-                <img
-                  src="/stea-icon.png"
-                  alt="STEA Logo"
-                  className="stea-navbar-logo"
-                  style={{
-                    width: 38, height: 38, minWidth: 38, maxWidth: 38, maxHeight: 38,
-                    objectFit: "contain", display: "block", flexShrink: 0,
-                    background: "transparent", borderRadius: 10,
-                  }}
+                <img 
+                  src="/stea-icon.jpg" 
+                  alt="STEA Logo" 
+                  className="stea-navbar-logo" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => { e.target.style.display = 'none'; }}
                 />
                 <div>
                   <strong
@@ -7655,7 +7544,6 @@ export default function App() {
                     user={user}
                     onLogout={handleLogout}
                     onAdmin={() => setAdminOpen(true)}
-                    onProfile={() => setProfileOpen(true)}
                   />
                 ) : (
                   <button
@@ -7887,14 +7775,12 @@ export default function App() {
                       marginBottom: 24,
                     }}
                   >
-                    <img
-                      src="/stea-main.png"
-                      alt="STEA"
-                      className="stea-footer-logo"
-                      style={{
-                        height: 52, maxHeight: 52, width: "auto", maxWidth: 200,
-                        objectFit: "contain", display: "block", background: "transparent",
-                      }}
+                    <img 
+                      src="/stea-icon.jpg" 
+                      alt="STEA Logo" 
+                      className="stea-footer-logo" 
+                      referrerPolicy="no-referrer"
+                      onError={(e) => { e.target.style.display = 'none'; }}
                     />
                   </div>
                   <p
@@ -7905,31 +7791,38 @@ export default function App() {
                       marginBottom: 32,
                     }}
                   >
-                    SwahiliTech Elite Academy (STEA) ni jukwaa namba moja la
-                    teknolojia kwa Kiswahili nchini Tanzania. Tunaleta elimu,
-                    habari na ofa bora za tech kiganjani mwako.
+                    {siteSettings.about_us?.shortDesc ||
+                      "SwahiliTech Elite Academy (STEA) ni jukwaa namba moja la teknolojia kwa Kiswahili nchini Tanzania. Tunaleta elimu, habari na ofa bora za tech kiganjani mwako."}
                   </p>
                   <div style={{ display: "flex", gap: 16, marginBottom: 32 }}>
-                    {["facebook", "instagram", "twitter", "youtube"].map(
-                      (s) => (
-                        <a
-                          key={s}
-                          href="#"
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 12,
-                            border: "1px solid rgba(255,255,255,.08)",
-                            background: "rgba(255,255,255,.04)",
-                            display: "grid",
-                            placeItems: "center",
-                            color: "rgba(255,255,255,.6)",
-                            fontSize: 18,
-                          }}
-                        >
-                          {s[0].toUpperCase()}
-                        </a>
-                      ),
+                    {Object.entries(siteSettings.contact_info?.socialLinks || {}).map(
+                      ([s, url]) =>
+                        url && (
+                          <a
+                            key={s}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 12,
+                              border: "1px solid rgba(255,255,255,.08)",
+                              background: "rgba(255,255,255,.04)",
+                              display: "grid",
+                              placeItems: "center",
+                              color: "rgba(255,255,255,.6)",
+                              fontSize: 18,
+                            }}
+                          >
+                            {s === "facebook" && "F"}
+                            {s === "instagram" && "I"}
+                            {s === "twitter" && "X"}
+                            {s === "youtube" && "Y"}
+                            {s === "linkedin" && "L"}
+                            {s === "tiktok" && "T"}
+                          </a>
+                        )
                     )}
                   </div>
                 </div>
@@ -8234,10 +8127,6 @@ export default function App() {
             >
               ↑
             </button>
-          )}
-
-          {profileOpen && user && (
-            <UserProfileModal user={user} onClose={() => setProfileOpen(false)} onUpdate={setUser} />
           )}
         </div>
       )}
