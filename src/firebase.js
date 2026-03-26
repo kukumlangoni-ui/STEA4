@@ -15,7 +15,17 @@ import firebaseConfig from "../firebase-applet-config.json";
 // ── VAPID Key — Firebase Console > Project Settings > Cloud Messaging > Web Push certificates > Generate key pair
 const VAPID_KEY = "BDlsejpFbn27TWmAFQLFCd72CncssIQbthLbEBe3h5al81IDX9LsOiQ2xt6AFirzUCbEg_eaiK3kE7L4hrnTqsE";
 
-const ADMIN_EMAIL = "swahilitechacademy@gmail.com";
+const ADMIN_EMAILS = [
+  "swahilitechacademy@gmail.com",
+  "isayamasika100@gmail.com",
+  "kukumlangoni@gmail.com",
+  "isayahans@gmail.com"
+];
+
+const isAdminEmail = (email) => {
+  if (!email) return false;
+  return ADMIN_EMAILS.some(e => e.toLowerCase() === email.toLowerCase());
+};
 
 // Helper to normalize email input (appends @gmail.com if domain is missing)
 export const normalizeEmail = (email) => {
@@ -52,11 +62,15 @@ export async function requestNotificationPermission() {
     if (permission !== "granted") return null;
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (token) {
-      await setDoc(doc(db, "fcm_tokens", token), {
-        token,
-        createdAt: serverTimestamp(),
-        platform: navigator.userAgent,
-      }, { merge: true });
+      try {
+        await setDoc(doc(db, "fcm_tokens", token), {
+          token,
+          createdAt: serverTimestamp(),
+          platform: navigator.userAgent,
+        }, { merge: true });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, "fcm_tokens");
+      }
     }
     return token;
   } catch (e) {
@@ -78,12 +92,13 @@ export async function sendPushNotification({ title, body, url }) {
       status: "pending",
     });
     console.log("[FCM] Notification queued:", title);
-  } catch (e) {
-    console.warn("[FCM] Queue error (non-blocking):", e.message);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, "notification_queue");
+    console.warn("[FCM] Queue error (non-blocking):", err.message);
   }
 }
 
-export { auth, db, messaging, ADMIN_EMAIL, GoogleAuthProvider, onMessage, VAPID_KEY };
+export { auth, db, messaging, ADMIN_EMAILS, isAdminEmail, GoogleAuthProvider, onMessage, VAPID_KEY };
 export {
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   signInWithPopup, signOut, onAuthStateChanged, sendPasswordResetEmail,
