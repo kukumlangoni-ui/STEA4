@@ -29,7 +29,7 @@ import {
   getFirebaseAuth,
   getFirebaseDb,
   GoogleAuthProvider,
-  ADMIN_EMAIL,
+  isAdminEmail,
   doc,
   setDoc,
   getDoc,
@@ -46,6 +46,8 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   requestNotificationPermission,
+  handleFirestoreError,
+  OperationType,
 } from "./firebase.js";
 import {
   useCollection,
@@ -1023,6 +1025,11 @@ function ArticleModal({ article, onClose, collection: col, waChannel }) {
   const hasImage = article.imageUrl && !imgError;
   const isTips = col === "tips";
 
+  // Unified CTA Logic
+  const primaryText = article.primaryActionText || (article.useDefaultWhatsAppChannel !== false ? "Jiunge na WhatsApp Channel" : "");
+  const primaryLink = article.primaryActionLink || (article.useDefaultWhatsAppChannel !== false ? waLink : "");
+  const showShare = article.enableShare !== false;
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -1191,7 +1198,48 @@ function ArticleModal({ article, onClose, collection: col, waChannel }) {
               ))}
             </div>
           )}
-          {article.source && (
+
+          {/* Creator Attribution */}
+          {article.showCreatorAttribution && article.creatorName && (
+            <div
+              style={{
+                marginTop: 32,
+                padding: 20,
+                borderRadius: 20,
+                background: "rgba(255,255,255,.03)",
+                border: "1px solid rgba(255,255,255,.08)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+                flexWrap: "wrap"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,.05)", display: "grid", placeItems: "center", fontSize: 20 }}>
+                  👤
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,.45)", fontWeight: 600 }}>{article.creatorLabel || "Content by"}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{article.creatorName}</div>
+                </div>
+              </div>
+              {article.creatorProfileLink && (
+                <button
+                  onClick={() => window.open(article.creatorProfileLink, "_blank")}
+                  style={{
+                    padding: "8px 16px", borderRadius: 12, border: "1px solid rgba(255,255,255,.1)",
+                    background: "rgba(255,255,255,.05)", color: "#fff", fontSize: 13, fontWeight: 700,
+                    cursor: "pointer"
+                  }}
+                >
+                  Visit Profile
+                </button>
+              )}
+            </div>
+          )}
+
+          {article.source && !article.showCreatorAttribution && (
             <div
               style={{
                 marginTop: 16,
@@ -1214,51 +1262,37 @@ function ArticleModal({ article, onClose, collection: col, waChannel }) {
               paddingTop: 32,
             }}
           >
-            {isTips ? (
-              <>
-                <GoldBtn
-                  onClick={() => (window.location.hash = "#courses")}
-                  style={{ justifyContent: "center" }}
-                >
-                  🎓 Jiunge na Kozi
-                </GoldBtn>
-                <button
-                  onClick={() => window.open(waLink, "_blank")}
-                  style={{
-                    padding: "12px 20px", borderRadius: 16,
-                    border: "1px solid rgba(37,211,102,.3)",
-                    background: "rgba(37,211,102,.08)",
-                    color: "#25d366", fontWeight: 800, fontSize: 14,
-                    cursor: "pointer", display: "flex",
-                    alignItems: "center", justifyContent: "center", gap: 8,
-                    transition: "all .2s",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "rgba(37,211,102,.16)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "rgba(37,211,102,.08)"}
-                >
-                  📢 Jiunge na WhatsApp Channel
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => window.open(waLink, "_blank")}
-                  style={{
-                    padding: "12px 20px", borderRadius: 16,
-                    border: "1px solid rgba(37,211,102,.3)",
-                    background: "rgba(37,211,102,.08)",
-                    color: "#25d366", fontWeight: 800, fontSize: 14,
-                    cursor: "pointer", display: "flex",
-                    alignItems: "center", justifyContent: "center", gap: 8,
-                    transition: "all .2s",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "rgba(37,211,102,.16)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "rgba(37,211,102,.08)"}
-                >
-                  📢 Jiunge na WhatsApp Channel
-                </button>
-                <ShareButton title={article.title} style={{ alignSelf: "center" }} />
-              </>
+            {primaryText && primaryLink && (
+              <button
+                onClick={() => window.open(primaryLink, "_blank")}
+                style={{
+                  padding: "14px 24px", borderRadius: 18,
+                  border: primaryLink.includes("whatsapp.com") ? "1px solid rgba(37,211,102,.3)" : `1px solid rgba(245,166,35,.3)`,
+                  background: primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.08)" : "rgba(245,166,35,.08)",
+                  color: primaryLink.includes("whatsapp.com") ? "#25d366" : G,
+                  fontWeight: 800, fontSize: 15,
+                  cursor: "pointer", display: "flex",
+                  alignItems: "center", justifyContent: "center", gap: 10,
+                  transition: "all .2s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.16)" : "rgba(245,166,35,.16)"}
+                onMouseLeave={e => e.currentTarget.style.background = primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.08)" : "rgba(245,166,35,.08)"}
+              >
+                {primaryLink.includes("whatsapp.com") ? "📢" : "🚀"} {primaryText}
+              </button>
+            )}
+            
+            {isTips && !article.primaryActionLink && (
+              <GoldBtn
+                onClick={() => (window.location.hash = "#courses")}
+                style={{ justifyContent: "center", height: 50, borderRadius: 18 }}
+              >
+                🎓 Jiunge na Kozi
+              </GoldBtn>
+            )}
+
+            {showShare && (
+              <ShareButton title={article.title} style={{ height: 50, borderRadius: 18, justifyContent: "center" }} />
             )}
           </div>
         </div>
@@ -1271,6 +1305,12 @@ function ArticleModal({ article, onClose, collection: col, waChannel }) {
 function VideoModal({ video, onClose, collection: col, waChannel }) {
   const waLink = waChannel || WA_CHANNEL_DEFAULT;
   const isTips = col === "tips";
+  
+  // Unified CTA logic
+  const primaryText = video.primaryActionText || (video.primaryActionLink?.includes("whatsapp.com") ? "Jiunge na WhatsApp Channel" : "Jiunge na STEA");
+  const primaryLink = video.primaryActionLink || (video.useDefaultWhatsAppChannel !== false ? waLink : null);
+  const showShare = video.enableShare !== false;
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -1503,6 +1543,53 @@ function VideoModal({ video, onClose, collection: col, waChannel }) {
             {video.title}
           </h3>
 
+          {/* Creator Attribution Section */}
+          {video.showCreatorAttribution && (
+            <div style={{ 
+              marginBottom: 24, 
+              padding: "16px", 
+              background: "rgba(255,255,255,.03)", 
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,.05)",
+              display: "flex",
+              alignItems: "center",
+              gap: 12
+            }}>
+              <div style={{ fontSize: 24 }}>👤</div>
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  {video.creatorLabel || "Imeandaliwa na"}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontWeight: 700, color: "#fff" }}>{video.creatorName || "STEA Creator"}</span>
+                  {video.creatorProfileLink && (
+                    <a 
+                      href={video.creatorProfileLink} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ 
+                        fontSize: 11, 
+                        color: G, 
+                        textDecoration: "none",
+                        background: "rgba(245,166,35,.1)",
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                        fontWeight: 600
+                      }}
+                    >
+                      Follow
+                    </a>
+                  )}
+                </div>
+                {video.sourcePlatform && (
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,.3)", marginTop: 2 }}>
+                    Source: {video.sourcePlatform}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div
             style={{
               display: "flex",
@@ -1511,32 +1598,41 @@ function VideoModal({ video, onClose, collection: col, waChannel }) {
               marginTop: "auto",
             }}
           >
-            {isTips ? (
+            {primaryLink && (
+              <button
+                onClick={() => window.open(primaryLink, "_blank")}
+                style={{
+                  flex: 1,
+                  minWidth: 200,
+                  height: 50,
+                  borderRadius: 18,
+                  border: "none",
+                  background: primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.08)" : "rgba(245,166,35,.08)",
+                  color: primaryLink.includes("whatsapp.com") ? "#25D366" : G,
+                  fontWeight: 800, fontSize: 15,
+                  cursor: "pointer", display: "flex",
+                  alignItems: "center", justifyContent: "center", gap: 10,
+                  transition: "all .2s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.16)" : "rgba(245,166,35,.16)"}
+                onMouseLeave={e => e.currentTarget.style.background = primaryLink.includes("whatsapp.com") ? "rgba(37,211,102,.08)" : "rgba(245,166,35,.08)"}
+              >
+                {primaryLink.includes("whatsapp.com") ? "📢" : "🚀"} {primaryText}
+              </button>
+            )}
+            
+            {isTips && !video.primaryActionLink && (
               <GoldBtn
-                onClick={() => { onClose(); window.location.hash = "#courses"; }}
-                style={{ padding: "12px 24px" }}
+                onClick={() => (window.location.hash = "#courses")}
+                style={{ justifyContent: "center", height: 50, borderRadius: 18, flex: 1 }}
               >
                 🎓 Jiunge na Kozi
               </GoldBtn>
-            ) : (
-              <button
-                onClick={() => window.open(waLink, "_blank")}
-                style={{
-                  padding: "12px 24px", borderRadius: 16,
-                  border: "1px solid rgba(37,211,102,.3)",
-                  background: "rgba(37,211,102,.08)",
-                  color: "#25d366", fontWeight: 800, fontSize: 14,
-                  cursor: "pointer", display: "flex",
-                  alignItems: "center", justifyContent: "center", gap: 8,
-                  transition: "all .2s",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = "rgba(37,211,102,.16)"}
-                onMouseLeave={e => e.currentTarget.style.background = "rgba(37,211,102,.08)"}
-              >
-                📢 Jiunge na WhatsApp Channel
-              </button>
             )}
-            <ShareButton title={video.title} />
+
+            {showShare && (
+              <ShareButton title={video.title} style={{ height: 50, borderRadius: 18, justifyContent: "center", flex: 1 }} />
+            )}
           </div>
         </div>
       </motion.div>
@@ -1697,7 +1793,7 @@ function ArticleCard({ item, onRead, collection: col }) {
               justifyContent: "center",
             }}
           >
-            📖 Soma Zaidi
+            {item.primaryActionText || "📖 Soma Zaidi"}
           </GoldBtn>
           <ShareButton title={item.title} />
         </div>
@@ -1882,7 +1978,7 @@ function VideoCard({ item, onPlay, collection: col }) {
               justifyContent: "center",
             }}
           >
-            ▶ Tazama Sasa
+            {item.primaryActionText || "▶ Tazama Sasa"}
           </GoldBtn>
           <ShareButton title={item.title} />
         </div>
@@ -1922,7 +2018,7 @@ function AuthModal({ onClose, onUser }) {
       const r = doc(db, "users", user.uid);
       const s = await getDoc(r);
       let role =
-        user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+        isAdminEmail(user.email)
           ? "admin"
           : s.exists()
             ? s.data().role || "user"
@@ -1939,10 +2035,11 @@ function AuthModal({ onClose, onUser }) {
       onUser({ ...user, role });
     } catch (err) {
       console.error("Error saving user:", err);
+      handleFirestoreError(err, OperationType.WRITE, "users");
       onUser({
         ...user,
         role:
-          user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+          isAdminEmail(user.email)
             ? "admin"
             : "user",
       });
@@ -2411,7 +2508,7 @@ function AuthModal({ onClose, onUser }) {
 }
 
 // ── User Chip ─────────────────────────────────────────
-function UserChip({ user, onLogout, onAdmin }) {
+function UserChip({ user, onLogout, onAdmin, onProfile }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -2439,9 +2536,10 @@ function UserChip({ user, onLogout, onAdmin }) {
           display: "grid",
           placeItems: "center",
           flexShrink: 0,
+          overflow: "hidden",
         }}
       >
-        {ini}
+        {user.photoURL ? <img src={user.photoURL} alt="Profile" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : ini}
       </button>
       {open && (
         <div
@@ -2496,6 +2594,27 @@ function UserChip({ user, onLogout, onAdmin }) {
               </span>
             )}
           </div>
+          <button
+            onClick={() => {
+              if (onProfile) onProfile();
+              setOpen(false);
+            }}
+            style={{
+              width: "100%",
+              marginBottom: 8,
+              padding: "10px 14px",
+              borderRadius: 12,
+              border: "none",
+              background: "rgba(255,255,255,.05)",
+              color: "#fff",
+              fontWeight: 800,
+              cursor: "pointer",
+              textAlign: "left",
+              fontSize: 14,
+            }}
+          >
+            👤 My Profile
+          </button>
           {user.role === "admin" && (
             <button
               onClick={() => {
@@ -5025,6 +5144,7 @@ function SupportForm() {
       confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
     } catch (err) {
       console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, "support_messages");
       alert("Samahani, imeshindikana kutuma ujumbe.");
     } finally {
       setLoading(false);
@@ -5455,6 +5575,24 @@ function CreatorSection({ goPage, siteSettings }) {
                     pointerEvents: "none",
                   }}
                 />
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 20,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    background: G,
+                    color: "#000",
+                    padding: "4px 16px",
+                    borderRadius: 99,
+                    fontWeight: 900,
+                    fontSize: 14,
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                  }}
+                >
+                  CEO
+                </div>
                 
                 {/* Info Overlay */}
                 <div
@@ -6890,6 +7028,97 @@ function HomePage({ goPage, siteSettings }) {
   );
 }
 
+export const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 600;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+        } else {
+          if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+        }
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
+
+function UserProfileModal({user, onClose, onUpdate}){
+  const [name, setName] = useState(user.displayName || user.name || "");
+  const [photo, setPhoto] = useState(user.photoURL || "");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const saveProfile = async () => {
+    setLoading(true);
+    setMsg("");
+    try {
+      const db = getFirebaseDb();
+      await setDoc(doc(db, "users", user.uid), { name, photoURL: photo }, { merge: true });
+      onUpdate({ ...user, displayName: name, name, photoURL: photo });
+      setMsg("✅ Profile imehifadhiwa!");
+      setTimeout(onClose, 1500);
+    } catch(e) {
+      handleFirestoreError(e, OperationType.WRITE, "users");
+      setMsg("⚠️ " + e.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,zIndex:800,background:"rgba(4,5,9,.85)",backdropFilter:"blur(10px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{width:"min(420px,100%)",borderRadius:24,border:"1px solid rgba(255,255,255,.12)",background:"rgba(16,18,28,.98)",padding:28,boxShadow:"0 24px 60px rgba(0,0,0,.5)",position:"relative"}}>
+        <button onClick={onClose} style={{position:"absolute",right:16,top:16,zIndex:20,width:32,height:32,borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.06)",color:"#fff",cursor:"pointer",fontSize:16}}>✕</button>
+        <h2 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:24,margin:"0 0 20px"}}>👤 My Profile</h2>
+        
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,marginBottom:24}}>
+          <div style={{width:90,height:90,borderRadius:"50%",background:"rgba(255,255,255,.05)",border:`2px solid #F5A623`,overflow:"hidden",display:"grid",placeItems:"center",fontSize:32,color:"#F5A623"}}>
+            {photo ? <img src={photo} alt="Profile" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : (name||"S")[0].toUpperCase()}
+          </div>
+          <label style={{cursor:"pointer",fontSize:13,fontWeight:800,color:"#111",background:"#F5A623",padding:"6px 14px",borderRadius:99}}>
+            📷 Badili Picha
+            <input type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
+              if(e.target.files && e.target.files[0]){
+                const base64 = await compressImage(e.target.files[0]);
+                setPhoto(base64);
+              }
+            }}/>
+          </label>
+        </div>
+
+        <div style={{display:"grid",gap:16,marginBottom:24}}>
+          <div>
+            <label style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,.5)",textTransform:"uppercase",marginBottom:6,display:"block"}}>Jina (Display Name)</label>
+            <input value={name} onChange={e=>setName(e.target.value)} style={{width:"100%",height:46,borderRadius:12,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.05)",color:"#fff",padding:"0 14px",outline:"none",fontSize:15}} />
+          </div>
+          <div>
+            <label style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,.5)",textTransform:"uppercase",marginBottom:6,display:"block"}}>Email</label>
+            <input value={user.email} disabled style={{width:"100%",height:46,borderRadius:12,border:"1px solid rgba(255,255,255,.05)",background:"rgba(255,255,255,.02)",color:"rgba(255,255,255,.4)",padding:"0 14px",outline:"none",fontSize:15}} />
+          </div>
+        </div>
+
+        {msg && <div style={{padding:12,borderRadius:12,background:"rgba(255,255,255,.05)",color:"#fff",fontSize:14,textAlign:"center",marginBottom:20}}>{msg}</div>}
+
+        <button onClick={saveProfile} disabled={loading} style={{width:"100%",height:48,borderRadius:12,background:"#F5A623",color:"#111",fontWeight:800,fontSize:15,border:"none",cursor:loading?"not-allowed":"pointer",opacity:loading?.7:1}}>{loading?"Inahifadhi...":"Hifadhi Profile"}</button>
+      </div>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════
 // ROOT APP
 // ════════════════════════════════════════════════════
@@ -6899,6 +7128,7 @@ export default function App() {
   const [transitioning, setTransitioning] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [user, setUser] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -6921,16 +7151,22 @@ export default function App() {
         if (snap.exists()) {
           setSiteSettings(prev => ({ ...prev, [id]: snap.data().data }));
         }
+      }, (err) => {
+        console.warn(`Non-critical error loading site_settings/${id}:`, err.message);
+        // We don't throw here to avoid crashing the app for non-critical settings
       })
     );
     const faqUnsub = onSnapshot(query(collection(db, "faqs"), orderBy("order", "asc")), (snap) => {
       setFaqs(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(f => f.isActive));
+    }, (err) => {
+      console.warn("Non-critical error loading faqs:", err.message);
+      // We don't throw here to avoid crashing the app
     });
     const unsub = onAuthStateChanged(getFirebaseAuth(), async (u) => {
       if (u) {
         const db = getFirebaseDb();
         let role = "user";
-        if (u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        if (isAdminEmail(u.email)) {
           role = "admin";
         } else if (db) {
           try {
@@ -7419,6 +7655,7 @@ export default function App() {
                     user={user}
                     onLogout={handleLogout}
                     onAdmin={() => setAdminOpen(true)}
+                    onProfile={() => setProfileOpen(true)}
                   />
                 ) : (
                   <button
@@ -7997,6 +8234,10 @@ export default function App() {
             >
               ↑
             </button>
+          )}
+
+          {profileOpen && user && (
+            <UserProfileModal user={user} onClose={() => setProfileOpen(false)} onUpdate={setUser} />
           )}
         </div>
       )}
