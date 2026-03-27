@@ -192,8 +192,10 @@ function TechContentManager({ collectionName }) {
     const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       fetched.sort((a, b) => {
-        const valA = a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt;
-        const valB = b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt;
+        const fieldA = a.updatedAt || a.createdAt;
+        const fieldB = b.updatedAt || b.createdAt;
+        const valA = fieldA?.toDate ? fieldA.toDate() : fieldA;
+        const valB = fieldB?.toDate ? fieldB.toDate() : fieldB;
         const timeA = valA === null || valA === undefined ? Date.now() + 10000 : (typeof valA === 'number' ? valA : new Date(valA).getTime() || 0);
         const timeB = valB === null || valB === undefined ? Date.now() + 10000 : (typeof valB === 'number' ? valB : new Date(valB).getTime() || 0);
         return timeB - timeA;
@@ -231,23 +233,16 @@ function TechContentManager({ collectionName }) {
         const updateData = { ...data };
         delete updateData.id;
         delete updateData.createdAt;
-        await updateDoc(doc(db, collectionName, editing), updateData);
+        await updateDoc(doc(db, collectionName, editing), { ...updateData, updatedAt: serverTimestamp() });
         toast_("Imesahihishwa!");
       }
       else { 
         await addDoc(collection(db, collectionName), data);
         toast_("Imewekwa live!");
-        // Send push notification (non-blocking)
         try {
           const section = collectionName === "tips" ? "tips" : "habari";
-          await sendPushNotification({
-            title: "New on STEA 🔥",
-            body: `${data.title} ipo live sasa. Bonyeza usome!`,
-            url: `${window.location.origin}/?page=${section}`,
-          });
-        } catch(notifErr) {
-          console.warn("[FCM] Notification failed:", notifErr.message);
-        }
+          await sendPushNotification({ title: "New on STEA 🔥", body: `${data.title} ipo live sasa!`, url: `${window.location.origin}/?page=${section}` });
+        } catch(e) { console.warn("[FCM]", e.message); }
       }
       setForm({ 
         type: "article", badge: "Tech", title: "", summary: "", content: "", 
@@ -404,7 +399,9 @@ function DealsManager() {
   const [docs, setDocs] = useState([]);
   const [form, setForm] = useState({ 
     imageUrl: "", name: "", description: "", dealType: "direct_offer", directLink: "", affiliateLink: "", whatsappLink: "", promoCode: "", 
-    oldPrice: "", newPrice: "", expiryDate: "", badge: "", featured: false
+    oldPrice: "", newPrice: "", expiryDate: "", badge: "", featured: false, category: "hosting",
+    fullDescription: "", whyThisDeal: "", includedFeatures: "", savingsText: "", ctaText: "Pata Deal", provider: "", terms: "",
+    joinedCount: "", liveJoinedText: "", todayJoinedCount: "", rating: "5.0", reviewText: "", urgencyText: ""
   });
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -420,8 +417,10 @@ function DealsManager() {
     const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       fetched.sort((a, b) => {
-        const valA = a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt;
-        const valB = b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt;
+        const fieldA = a.updatedAt || a.createdAt;
+        const fieldB = b.updatedAt || b.createdAt;
+        const valA = fieldA?.toDate ? fieldA.toDate() : fieldA;
+        const valB = fieldB?.toDate ? fieldB.toDate() : fieldB;
         const timeA = valA === null || valA === undefined ? Date.now() + 10000 : (typeof valA === 'number' ? valA : new Date(valA).getTime() || 0);
         const timeB = valB === null || valB === undefined ? Date.now() + 10000 : (typeof valB === 'number' ? valB : new Date(valB).getTime() || 0);
         return timeB - timeA;
@@ -454,7 +453,7 @@ function DealsManager() {
         delete updateData.id;
         delete updateData.createdAt;
         console.log("Updating deal:", editing, "Fields count:", Object.keys(updateData).length);
-        await updateDoc(doc(db,"deals",editing), updateData);
+        await updateDoc(doc(db,"deals",editing), { ...updateData, updatedAt: serverTimestamp() });
         toast_("Imesahihishwa!");
       }
       else          { 
@@ -462,7 +461,12 @@ function DealsManager() {
         await addDoc(collection(db,"deals"), data); 
         toast_("Deal imewekwa live!"); 
       }
-      setForm({ imageUrl: "", name: "", description: "", dealType: "direct_offer", directLink: "", affiliateLink: "", whatsappLink: "", promoCode: "", oldPrice: "", newPrice: "", expiryDate: "", badge: "", featured: false, category: "hosting" });
+      setForm({ 
+        imageUrl: "", name: "", description: "", dealType: "direct_offer", directLink: "", affiliateLink: "", whatsappLink: "", promoCode: "", 
+        oldPrice: "", newPrice: "", expiryDate: "", badge: "", featured: false, category: "hosting",
+        fullDescription: "", whyThisDeal: "", includedFeatures: "", savingsText: "", ctaText: "Pata Deal", provider: "", terms: "",
+        joinedCount: "", liveJoinedText: "", todayJoinedCount: "", rating: "5.0", reviewText: "", urgencyText: ""
+      });
       setEditing(null);
     } catch (e) {
       console.error(e);
@@ -516,7 +520,14 @@ function DealsManager() {
             </Field>
           </div>
           <ImageUploadField label="Real Image URL (Optional)" value={form.imageUrl} onChange={val => setForm(f => ({ ...f, imageUrl: val }))} />
-          <Field label="Maelezo"><Textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Maelezo ya deal hii..." style={{minHeight:80}}/></Field>
+          <Field label="Short Intro"><Textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Maelezo mafupi ya deal hii..." style={{minHeight:60}}/></Field>
+          <Field label="Full Description"><Textarea value={form.fullDescription} onChange={e=>setForm(f=>({...f,fullDescription:e.target.value}))} placeholder="Maelezo kamili ya deal hii..." style={{minHeight:100}}/></Field>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Why This Deal?"><Textarea value={form.whyThisDeal} onChange={e=>setForm(f=>({...f,whyThisDeal:e.target.value}))} placeholder="Kwa nini ununue deal hii?" style={{minHeight:80}}/></Field>
+            <Field label="Included Features (One per line)"><Textarea value={form.includedFeatures} onChange={e=>setForm(f=>({...f,includedFeatures:e.target.value}))} placeholder="Feature 1&#10;Feature 2&#10;Feature 3" style={{minHeight:80}}/></Field>
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             <Field label="Direct Link"><Input value={form.directLink} onChange={e=>setForm(f=>({...f,directLink:e.target.value}))} placeholder="https://..."/></Field>
             <Field label="Affiliate Link"><Input value={form.affiliateLink} onChange={e=>setForm(f=>({...f,affiliateLink:e.target.value}))} placeholder="https://..."/></Field>
@@ -526,12 +537,31 @@ function DealsManager() {
             <Field label="Promo Code"><Input value={form.promoCode} onChange={e=>setForm(f=>({...f,promoCode:e.target.value}))} placeholder="STEA60"/></Field>
             <Field label="Old Price"><Input value={form.oldPrice} onChange={e=>setForm(f=>({...f,oldPrice:e.target.value}))} placeholder="$15"/></Field>
             <Field label="New Price"><Input value={form.newPrice} onChange={e=>setForm(f=>({...f,newPrice:e.target.value}))} placeholder="$6"/></Field>
+            <Field label="Savings Text"><Input value={form.savingsText} onChange={e=>setForm(f=>({...f,savingsText:e.target.value}))} placeholder="Save 60%"/></Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+            <Field label="Badge"><Input value={form.badge} onChange={e=>setForm(f=>({...f,badge:e.target.value}))} placeholder="HOT"/></Field>
+            <Field label="Category"><Input value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} placeholder="hosting"/></Field>
+            <Field label="Provider/Source"><Input value={form.provider} onChange={e=>setForm(f=>({...f,provider:e.target.value}))} placeholder="Hostinger"/></Field>
+          </div>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="CTA Button Text"><Input value={form.ctaText} onChange={e=>setForm(f=>({...f,ctaText:e.target.value}))} placeholder="Pata Deal"/></Field>
             <Field label="Expiry Date"><Input type="date" value={form.expiryDate} onChange={e=>setForm(f=>({...f,expiryDate:e.target.value}))} /></Field>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Badge"><Input value={form.badge} onChange={e=>setForm(f=>({...f,badge:e.target.value}))} placeholder="HOT"/></Field>
-            <Field label="Category (hosting, domains, ai, marketing, design)"><Input value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} placeholder="hosting"/></Field>
+
+          <h4 style={{ margin: "10px 0 0", color: "rgba(255,255,255,0.8)" }}>Trust & Persuasion Elements</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+            <Field label="Total Joined Count"><Input value={form.joinedCount} onChange={e=>setForm(f=>({...f,joinedCount:e.target.value}))} placeholder="1200"/></Field>
+            <Field label="Live Joined Text"><Input value={form.liveJoinedText} onChange={e=>setForm(f=>({...f,liveJoinedText:e.target.value}))} placeholder="120+ members joined"/></Field>
+            <Field label="Today Joined Count"><Input value={form.todayJoinedCount} onChange={e=>setForm(f=>({...f,todayJoinedCount:e.target.value}))} placeholder="15"/></Field>
           </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Rating (e.g. 4.9)"><Input value={form.rating} onChange={e=>setForm(f=>({...f,rating:e.target.value}))} placeholder="5.0"/></Field>
+            <Field label="Urgency Text"><Input value={form.urgencyText} onChange={e=>setForm(f=>({...f,urgencyText:e.target.value}))} placeholder="Offer ends soon!"/></Field>
+          </div>
+          <Field label="Short Review/Testimonial"><Textarea value={form.reviewText} onChange={e=>setForm(f=>({...f,reviewText:e.target.value}))} placeholder="This deal saved me $100! - John" style={{minHeight:60}}/></Field>
+          <Field label="Terms / Important Notes"><Textarea value={form.terms} onChange={e=>setForm(f=>({...f,terms:e.target.value}))} placeholder="Valid for new users only..." style={{minHeight:60}}/></Field>
           <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <input type="checkbox" checked={form.featured} onChange={e => setForm(f => ({ ...f, featured: e.target.checked }))} />
             Featured
@@ -602,8 +632,10 @@ function CoursesManager() {
     const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       fetched.sort((a, b) => {
-        const valA = a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt;
-        const valB = b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt;
+        const fieldA = a.updatedAt || a.createdAt;
+        const fieldB = b.updatedAt || b.createdAt;
+        const valA = fieldA?.toDate ? fieldA.toDate() : fieldA;
+        const valB = fieldB?.toDate ? fieldB.toDate() : fieldB;
         const timeA = valA === null || valA === undefined ? Date.now() + 10000 : (typeof valA === 'number' ? valA : new Date(valA).getTime() || 0);
         const timeB = valB === null || valB === undefined ? Date.now() + 10000 : (typeof valB === 'number' ? valB : new Date(valB).getTime() || 0);
         return timeB - timeA;
@@ -663,7 +695,7 @@ function CoursesManager() {
         delete updateData.id;
         delete updateData.createdAt;
         console.log("Updating document:", editing, "Fields count:", Object.keys(updateData).length);
-        await updateDoc(doc(db,"courses",editing), updateData);
+        await updateDoc(doc(db,"courses",editing), { ...updateData, updatedAt: serverTimestamp() });
         toast_("Imesahihishwa!");
       }
       else          { 
@@ -890,8 +922,10 @@ function ProductsManager() {
     const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       fetched.sort((a, b) => {
-        const valA = a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt;
-        const valB = b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt;
+        const fieldA = a.updatedAt || a.createdAt;
+        const fieldB = b.updatedAt || b.createdAt;
+        const valA = fieldA?.toDate ? fieldA.toDate() : fieldA;
+        const valB = fieldB?.toDate ? fieldB.toDate() : fieldB;
         const timeA = valA === null || valA === undefined ? Date.now() + 10000 : (typeof valA === 'number' ? valA : new Date(valA).getTime() || 0);
         const timeB = valB === null || valB === undefined ? Date.now() + 10000 : (typeof valB === 'number' ? valB : new Date(valB).getTime() || 0);
         return timeB - timeA;
@@ -925,7 +959,7 @@ function ProductsManager() {
         delete updateData.id;
         delete updateData.createdAt;
         console.log("Updating product:", editing, "Fields count:", Object.keys(updateData).length);
-        await updateDoc(doc(db, "products", editing), updateData);
+        await updateDoc(doc(db, "products", editing), { ...updateData, updatedAt: serverTimestamp() });
         toast_("Imesahihishwa!");
       }
       else { 
@@ -1043,8 +1077,10 @@ function WebsitesManager() {
     const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       fetched.sort((a, b) => {
-        const valA = a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt;
-        const valB = b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt;
+        const fieldA = a.updatedAt || a.createdAt;
+        const fieldB = b.updatedAt || b.createdAt;
+        const valA = fieldA?.toDate ? fieldA.toDate() : fieldA;
+        const valB = fieldB?.toDate ? fieldB.toDate() : fieldB;
         const timeA = valA === null || valA === undefined ? Date.now() + 10000 : (typeof valA === 'number' ? valA : new Date(valA).getTime() || 0);
         const timeB = valB === null || valB === undefined ? Date.now() + 10000 : (typeof valB === 'number' ? valB : new Date(valB).getTime() || 0);
         return timeB - timeA;
@@ -1077,7 +1113,7 @@ function WebsitesManager() {
         const updateData = { ...data };
         delete updateData.id;
         delete updateData.createdAt;
-        await updateDoc(doc(db, "websites", editing), updateData);
+        await updateDoc(doc(db, "websites", editing), { ...updateData, updatedAt: serverTimestamp() });
         toast_("Imesahihishwa!");
       }
       else { await addDoc(collection(db, "websites"), data); toast_("Website imewekwa live!"); }
@@ -1177,8 +1213,10 @@ function PromptsManager() {
     const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       fetched.sort((a, b) => {
-        const valA = a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt;
-        const valB = b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt;
+        const fieldA = a.updatedAt || a.createdAt;
+        const fieldB = b.updatedAt || b.createdAt;
+        const valA = fieldA?.toDate ? fieldA.toDate() : fieldA;
+        const valB = fieldB?.toDate ? fieldB.toDate() : fieldB;
         const timeA = valA === null || valA === undefined ? Date.now() + 10000 : (typeof valA === 'number' ? valA : new Date(valA).getTime() || 0);
         const timeB = valB === null || valB === undefined ? Date.now() + 10000 : (typeof valB === 'number' ? valB : new Date(valB).getTime() || 0);
         return timeB - timeA;
@@ -1543,7 +1581,7 @@ function FAQManager() {
     try {
       const data = { ...form, order: Number(form.order) };
       if (editing) {
-        await updateDoc(doc(db, "faqs", editing), data);
+        await updateDoc(doc(db, "faqs", editing), { ...data, updatedAt: serverTimestamp() });
         toast_("FAQ imebadilishwa");
       } else {
         await addDoc(collection(db, "faqs"), { ...data, createdAt: serverTimestamp() });
@@ -1727,6 +1765,298 @@ function UsersManager() {
 }
 
 // ══════════════════════════════════════════════════════
+// SPONSORED ADS MANAGER
+// ══════════════════════════════════════════════════════
+function SponsoredAdsManager() {
+  const [docs, setDocs] = useState([]);
+  const [form, setForm] = useState({ 
+    title: "", clientName: "", imageUrl: "", shortText: "", ctaText: "", ctaLink: "", 
+    adType: "popup", targetPages: [], startDate: "", endDate: "", status: "active", 
+    impressions: 0, clicks: 0, priority: 0 
+  });
+  const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [toast,   setToast]   = useState(null);
+  const [confirm, setConfirm] = useState(null);
+
+  const db = getFirebaseDb();
+  const toast_ = (msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
+
+  useEffect(() => {
+    if (!db) return;
+    const q = query(collection(db, "sponsored_ads"), limit(1000));
+    const unsub = onSnapshot(q, (snap) => {
+      setDocs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.error("Error loading ads:", err));
+    return () => unsub();
+  }, [db]);
+
+  const save = async () => {
+    if (!form.title.trim()) { toast_("Weka title ya ad", "error"); return; }
+    setLoading(true);
+    try {
+      const data = { ...form, createdAt: serverTimestamp() };
+      if (editing) {
+        await updateDoc(doc(db, "sponsored_ads", editing), { ...data, updatedAt: serverTimestamp() });
+        toast_("Imesahihishwa!");
+      } else {
+        await addDoc(collection(db, "sponsored_ads"), data);
+        toast_("Ad imewekwa live!");
+      }
+      setForm({ title: "", clientName: "", imageUrl: "", shortText: "", ctaText: "", ctaLink: "", adType: "popup", targetPages: [], startDate: "", endDate: "", status: "active", impressions: 0, clicks: 0, priority: 0 });
+      setEditing(null);
+    } catch (e) {
+      console.error(e);
+      toast_(e.message, "error");
+    }
+    setLoading(false);
+  };
+
+  const del = async (id) => {
+    setConfirm({
+      msg: "Una uhakika unataka kufuta ad hii?",
+      onConfirm: async () => { await deleteDoc(doc(db, "sponsored_ads", id)); setConfirm(null); toast_("Imefutwa"); },
+      onCancel: () => setConfirm(null)
+    });
+  };
+
+  return (
+    <div>
+      {toast && <Toast msg={toast.msg} type={toast.type}/>}
+      {confirm && <ConfirmDialog {...confirm}/>}
+      <div style={{ borderRadius:20, border:"1px solid rgba(255,255,255,.08)", background:"#141823", padding:24, marginBottom:28 }}>
+        <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>
+          {editing ? "✏️ Hariri Ad" : "➕ Ongeza Ad Mpya"}
+        </h3>
+        <div style={{ display: "grid", gap: 16 }}>
+          <Field label="Ad Title *"><Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></Field>
+          <Field label="Client Name *"><Input value={form.clientName} onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))} /></Field>
+          <ImageUploadField label="Banner/Popup Image" value={form.imageUrl} onChange={val => setForm(f => ({ ...f, imageUrl: val }))} />
+          <Field label="Short Text"><Input value={form.shortText} onChange={e => setForm(f => ({ ...f, shortText: e.target.value }))} /></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="CTA Text"><Input value={form.ctaText} onChange={e => setForm(f => ({ ...f, ctaText: e.target.value }))} /></Field>
+            <Field label="CTA Link"><Input value={form.ctaLink} onChange={e => setForm(f => ({ ...f, ctaLink: e.target.value }))} /></Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+            <Field label="Ad Type">
+              <select value={form.adType} onChange={e => setForm(f => ({ ...f, adType: e.target.value }))} style={{ height:46, borderRadius:12, background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", color:"#fff", padding:"0 14px" }}>
+                <option value="popup">Popup</option>
+                <option value="banner">Banner</option>
+                <option value="inline">Inline</option>
+              </select>
+            </Field>
+            <Field label="Status">
+              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} style={{ height:46, borderRadius:12, background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", color:"#fff", padding:"0 14px" }}>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="expired">Expired</option>
+              </select>
+            </Field>
+            <Field label="Priority"><Input type="number" value={form.priority} onChange={e => setForm(f => ({ ...f, priority: parseInt(e.target.value) }))} /></Field>
+          </div>
+          <Btn onClick={save} disabled={loading}>{loading?"Inahifadhi...":editing?"💾 Hifadhi":"🚀 Weka Live"}</Btn>
+        </div>
+      </div>
+      <div style={{ display: "grid", gap: 12 }}>
+        {docs.map(item => (
+          <div key={item.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{item.title} ({item.clientName})</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>{item.adType} • {item.status}</div>
+            </div>
+            <Btn onClick={() => { setEditing(item.id); setForm(item); }} color="rgba(245,166,35,.12)" textColor={G} style={{ padding: "8px 14px" }}>✏️</Btn>
+            <Btn onClick={() => del(item.id)} color="rgba(239,68,68,.12)" textColor="#fca5a5" style={{ padding: "8px 14px" }}>🗑️</Btn>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// COMMERCE MANAGER
+// ══════════════════════════════════════════════════════
+function CommerceManager() {
+  const [orders, setOrders] = useState([]);
+  const [subs, setSubs] = useState([]);
+  const db = getFirebaseDb();
+
+  useEffect(() => {
+    if (!db) return;
+    const unsubOrders = onSnapshot(collection(db, "orders"), (snap) => setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubSubs = onSnapshot(collection(db, "subscriptions"), (snap) => setSubs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => { unsubOrders(); unsubSubs(); };
+  }, [db]);
+
+  const approveOrder = async (id) => {
+    await updateDoc(doc(db, "orders", id), { status: "approved" });
+  };
+
+  return (
+    <div>
+      <div style={{ borderRadius:20, border:"1px solid rgba(255,255,255,.08)", background:"#141823", padding:24, marginBottom:28 }}>
+        <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Orders</h3>
+        <div style={{ display: "grid", gap: 12 }}>
+          {orders.map(o => (
+            <div key={o.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>Order: {o.dealId}</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Amount: {o.amount} | Status: {o.status}</div>
+              </div>
+              {o.status === "pending" && <Btn onClick={() => approveOrder(o.id)} color={G} textColor="#111" style={{ padding: "8px 14px" }}>Approve</Btn>}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ borderRadius:20, border:"1px solid rgba(255,255,255,.08)", background:"#141823", padding:24 }}>
+        <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Subscriptions</h3>
+        <div style={{ display: "grid", gap: 12 }}>
+          {subs.map(s => (
+            <div key={s.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>Sub: {s.dealId}</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Status: {s.status} | End: {s.endDate}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// PAYMENT REVIEW MANAGER
+// ══════════════════════════════════════════════════════
+function PaymentReviewManager() {
+  const [payments, setPayments] = useState([]);
+  const db = getFirebaseDb();
+
+  useEffect(() => {
+    if (!db) return;
+    const q = query(collection(db, "payments"), orderBy("submittedAt", "desc"));
+    const unsub = onSnapshot(q, (snap) => setPayments(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => console.error("Error loading payments:", err));
+    return () => unsub();
+  }, [db]);
+
+  const updateStatus = async (id, status) => {
+    await updateDoc(doc(db, "payments", id), { reviewStatus: status, reviewedAt: serverTimestamp() });
+  };
+
+  return (
+    <div>
+      <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Payment Review</h3>
+      <div style={{ display: "grid", gap: 12 }}>
+        {payments.map(p => (
+          <div key={p.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{p.customerName} - {p.amountPaid}</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Status: {p.reviewStatus} | Ref: {p.paymentReference}</div>
+            </div>
+            {p.reviewStatus === "pending" && (
+              <>
+                <Btn onClick={() => updateStatus(p.id, "approved")} color={G} textColor="#111" style={{ padding: "8px 14px" }}>Approve</Btn>
+                <Btn onClick={() => updateStatus(p.id, "rejected")} color="rgba(239,68,68,.12)" textColor="#fca5a5" style={{ padding: "8px 14px" }}>Reject</Btn>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// SUBSCRIPTION MANAGER
+// ══════════════════════════════════════════════════════
+function SubscriptionManager() {
+  const [subs, setSubs] = useState([]);
+  const db = getFirebaseDb();
+
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(collection(db, "subscriptions"), (snap) => setSubs(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => console.error("Error loading subscriptions:", err));
+    return () => unsub();
+  }, [db]);
+
+  return (
+    <div>
+      <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Subscriptions</h3>
+      <div style={{ display: "grid", gap: 12 }}>
+        {subs.map(s => (
+          <div key={s.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{s.customerName} - {s.status}</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Ends: {s.endDate?.toDate().toLocaleDateString()}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// DELIVERY MANAGER
+// ══════════════════════════════════════════════════════
+function DeliveryManager() {
+  const [deliveries, setDeliveries] = useState([]);
+  const db = getFirebaseDb();
+
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(collection(db, "deliveries"), (snap) => setDeliveries(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => console.error("Error loading deliveries:", err));
+    return () => unsub();
+  }, [db]);
+
+  return (
+    <div>
+      <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Delivery Manager</h3>
+      <div style={{ display: "grid", gap: 12 }}>
+        {deliveries.map(d => (
+          <div key={d.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>Order: {d.orderId}</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Status: {d.deliveryStatus}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// MESSAGE TEMPLATE MANAGER
+// ══════════════════════════════════════════════════════
+function MessageTemplateManager() {
+  const [templates, setTemplates] = useState([]);
+  const db = getFirebaseDb();
+
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(collection(db, "message_templates"), (snap) => setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => console.error("Error loading templates:", err));
+    return () => unsub();
+  }, [db]);
+
+  return (
+    <div>
+      <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Message Templates</h3>
+      <div style={{ display: "grid", gap: 12 }}>
+        {templates.map(t => (
+          <div key={t.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{t.name}</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>{t.content.substring(0, 50)}...</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
 // MAIN ADMIN PANEL
 // ══════════════════════════════════════════════════════
 export default function AdminPanel({ user, onBack }) {
@@ -1737,7 +2067,7 @@ export default function AdminPanel({ user, onBack }) {
 
   useEffect(() => {
     if (!db) return;
-    const cols = ["tips","updates","deals","courses","users","products","websites","prompts"];
+    const cols = ["tips","updates","deals","courses","users","products","websites","prompts", "sponsored_ads", "orders", "subscriptions"];
     const unsubs = cols.map(c => 
       onSnapshot(collection(db, c), (snap) => {
         setCounts(prev => ({ ...prev, [c]: snap.size }));
@@ -1750,6 +2080,12 @@ export default function AdminPanel({ user, onBack }) {
 
   const SECTIONS = [
     { id:"overview", icon:"📊", label:"Overview" },
+    { id:"ads",      icon:"📢", label:"Sponsored Ads" },
+    { id:"commerce", icon:"💳", label:"Commerce" },
+    { id:"payments", icon:"💰", label:"Payment Review" },
+    { id:"subs",     icon:"🔄", label:"Subscriptions" },
+    { id:"delivery", icon:"📦", label:"Delivery" },
+    { id:"templates", icon:"✉️", label:"Templates" },
     { id:"tips",     icon:"💡", label:"Tech Tips" },
     { id:"updates",  icon:"📰", label:"Tech Updates" },
     { id:"prompts",  icon:"🤖", label:"Prompt Lab" },
@@ -1813,6 +2149,11 @@ export default function AdminPanel({ user, onBack }) {
               <StatCard icon="🛒" label="Duka Products" value={counts.products} color="#fbbf24"/>
               <StatCard icon="🌐" label="Websites" value={counts.websites} color="#818cf8"/>
               <StatCard icon="👥" label="Users" value={counts.users} color="#ff85cf"/>
+              <StatCard icon="📢" label="Sponsored Ads" value={counts.sponsored_ads} color="#f5a623"/>
+              <StatCard icon="💳" label="Orders" value={counts.orders} color="#67f0c1"/>
+              <StatCard icon="🔄" label="Subscriptions" value={counts.subscriptions} color="#a5b4fc"/>
+              <StatCard icon="💰" label="Payments" value={counts.payments} color="#f5a623"/>
+              <StatCard icon="📦" label="Deliveries" value={counts.deliveries} color="#67f0c1"/>
             </div>
 
             {/* Quick guide */}
@@ -1838,6 +2179,12 @@ export default function AdminPanel({ user, onBack }) {
           </div>
         )}
 
+        {section==="ads"      && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>📢 Manage <span style={{color:G}}>Sponsored Ads</span></h2><SponsoredAdsManager/></>}
+        {section==="commerce" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>💳 Manage <span style={{color:G}}>Commerce</span></h2><CommerceManager/></>}
+        {section==="payments" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>💰 Manage <span style={{color:G}}>Payment Review</span></h2><PaymentReviewManager/></>}
+        {section==="subs"     && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>🔄 Manage <span style={{color:G}}>Subscriptions</span></h2><SubscriptionManager/></>}
+        {section==="delivery" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>📦 Manage <span style={{color:G}}>Delivery</span></h2><DeliveryManager/></>}
+        {section==="templates" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>✉️ Manage <span style={{color:G}}>Templates</span></h2><MessageTemplateManager/></>}
         {section==="tips"    && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>💡 Manage <span style={{color:G}}>Tech Tips</span></h2><TechContentManager collectionName="tips" /></>}
         {section==="updates" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>📰 Manage <span style={{color:G}}>Tech Updates</span></h2><TechContentManager collectionName="updates" /></>}
         {section==="prompts" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>🤖 Manage <span style={{color:G}}>Prompt Lab</span></h2><PromptsManager/></>}
@@ -1847,6 +2194,7 @@ export default function AdminPanel({ user, onBack }) {
         {section==="websites" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>🌐 Manage <span style={{color:G}}>Websites</span></h2><WebsitesManager/></>}
         {section==="content" && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>📝 Manage <span style={{color:G}}>Site Content</span></h2><SiteContentManager/></>}
         {section==="users"   && <><h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:28, margin:"0 0 24px" }}>👥 Manage <span style={{color:G}}>Users</span></h2><UsersManager/></>}
+
       </div>
 
       <style>{`@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
