@@ -1,0 +1,21 @@
+{
+  "name": "SwahiliTech Elite Academy",
+  "short_name": "STEA",
+  "description": "Teknolojia kwa Kiswahili 🇹🇿",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#F5A623",
+  "background_color": "#05060a",
+  "lang": "sw",
+  "icons": [
+    { "src": "/stea-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/stea-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/stea-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/stea-icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/stea-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Tech Tips", "url": "/?page=tips" },
+    { "name": "Deals", "url": "/?page=deals" }
+  ]
+}
