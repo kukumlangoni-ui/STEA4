@@ -2,279 +2,570 @@
 import { useState, useEffect, useRef } from "react";
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
-import { Send, Loader2, X, MessageSquare, Phone, ChevronLeft, Sparkles, Bot } from "lucide-react";
+import { Send, X, MessageSquare, Phone, ChevronLeft, Sparkles, Bot, Zap } from "lucide-react";
 
+const G = "#F5A623";
+const G2 = "#FFD17C";
+
+// ── Typing dots animation ──────────────────────────────
+function TypingDots() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "12px 16px" }}>
+      {[0, 1, 2].map(i => (
+        <div key={i} style={{
+          width: 7, height: 7, borderRadius: "50%",
+          background: G,
+          animation: `steaDot 1.2s ease-in-out ${i * 0.2}s infinite`,
+        }} />
+      ))}
+      <style>{`
+        @keyframes steaDot {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+          40% { transform: scale(1.1); opacity: 1; }
+        }
+        @keyframes steaFadeUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes steaShimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes steaFloat {
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-6px); }
+        }
+        .stea-msg { animation: steaFadeUp 0.3s ease forwards; }
+        .stea-chat-scroll::-webkit-scrollbar { width: 3px; }
+        .stea-chat-scroll::-webkit-scrollbar-thumb { background: rgba(245,166,35,0.2); border-radius: 3px; }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Message bubble ─────────────────────────────────────
+function MsgBubble({ msg }) {
+  const isUser = msg.role === "user";
+  return (
+    <div className="stea-msg" style={{
+      display: "flex",
+      justifyContent: isUser ? "flex-end" : "flex-start",
+      marginBottom: 14,
+    }}>
+      {!isUser && (
+        <div style={{
+          width: 30, height: 30, borderRadius: 10, flexShrink: 0, marginRight: 8, marginTop: 2,
+          background: `linear-gradient(135deg, ${G}, ${G2})`,
+          display: "grid", placeItems: "center",
+        }}>
+          <Zap size={14} color="#111" strokeWidth={2.5} />
+        </div>
+      )}
+      <div style={{
+        maxWidth: "78%",
+        padding: isUser ? "10px 14px" : "12px 16px",
+        borderRadius: isUser ? "18px 4px 18px 18px" : "4px 18px 18px 18px",
+        background: isUser
+          ? `linear-gradient(135deg, ${G}, ${G2})`
+          : "rgba(255,255,255,0.07)",
+        border: isUser ? "none" : "1px solid rgba(255,255,255,0.08)",
+        color: isUser ? "#111" : "#fff",
+        fontSize: 14,
+        lineHeight: 1.65,
+        fontWeight: isUser ? 600 : 400,
+        wordBreak: "break-word",
+        backdropFilter: isUser ? "none" : "blur(10px)",
+        boxShadow: isUser
+          ? "0 4px 20px rgba(245,166,35,0.25)"
+          : "0 2px 12px rgba(0,0,0,0.2)",
+      }}>
+        <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
+          <ReactMarkdown
+            components={{
+              code: ({ children }) => (
+                <code style={{
+                  background: "rgba(245,166,35,0.12)",
+                  color: G,
+                  padding: "2px 6px",
+                  borderRadius: 5,
+                  fontSize: 12,
+                  fontFamily: "monospace",
+                }}>{children}</code>
+              ),
+              pre: ({ children }) => (
+                <pre style={{
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 10,
+                  padding: 12,
+                  overflowX: "auto",
+                  fontSize: 12,
+                  margin: "8px 0",
+                }}>{children}</pre>
+              ),
+              p: ({ children }) => <p style={{ margin: "4px 0" }}>{children}</p>,
+              ul: ({ children }) => <ul style={{ paddingLeft: 18, margin: "6px 0" }}>{children}</ul>,
+              ol: ({ children }) => <ol style={{ paddingLeft: 18, margin: "6px 0" }}>{children}</ol>,
+              li: ({ children }) => <li style={{ marginBottom: 3 }}>{children}</li>,
+              strong: ({ children }) => <strong style={{ color: isUser ? "#111" : G }}>{children}</strong>,
+            }}
+          >{msg.text}</ReactMarkdown>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────
 export default function AIChat({ onClose }) {
-  const [view, setView] = useState("home"); // "home" or "chat"
+  const [view, setView] = useState("home");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [hasCustomKey, setHasCustomKey] = useState(false);
-
-  useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio?.hasSelectedApiKey) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasCustomKey(hasKey);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleSelectKey = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
-      setHasCustomKey(true);
-    }
-  };
-
   const chatEndRef = useRef(null);
-  const scrollToBottom = () => chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  
-  useEffect(() => {
-    if (view === "chat") scrollToBottom();
-  }, [messages, view]);
+  const inputRef = useRef(null);
 
-  // Prevent background scroll when chat is open
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "auto";
-    };
+    return () => { document.body.style.overflow = ""; };
   }, []);
 
-  const getAIInstance = () => {
-    const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || "";
-    return new GoogleGenAI({ apiKey: key });
-  };
+  useEffect(() => {
+    if (view === "chat") setTimeout(() => inputRef.current?.focus(), 300);
+  }, [view]);
 
   const handleSend = async (textOverride) => {
-    const text = textOverride || input;
-    if (!text.trim()) return;
-    
+    const text = (textOverride || input).trim();
+    if (!text || loading) return;
+
     if (view !== "chat") setView("chat");
-    
-    const userMsg = { role: "user", text };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, { role: "user", text }]);
     setInput("");
     setLoading(true);
 
     try {
-      const ai = getAIInstance();
-      const config = {
-        systemInstruction: `You are STEA AI, a helpful assistant for SwahiliTech Elite Academy (STEA). 
-STEA was created and is owned by Isaya Hans Masika, a Tanzanian tech creator and web developer originally from Mbeya Region, currently based in China. 
-Isaya holds a Bachelor's Degree in Computer Science from Guilin University of Electronic Technology, China. 
-His education background includes Lugufu Boys Secondary School, Mbezi Beach Secondary School, and Wazo Hill Primary School. 
-He is the 4th born in a family of 6 children and is passionate about technology, website development, and digital tools.
-STEA focuses on tech education, AI tools, and digital resources in Kiswahili. 
-The platform was officially launched recently after Isaya successfully built and deployed multiple working websites.
-When asked "Who owns STEA?", always answer clearly: Isaya Hans Masika. 
-Respond confidently and accurately in Swahili and English. Keep responses concise and helpful.`,
-      };
-      
+      const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || "";
+      const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+      const ai = new GoogleGenAI({ apiKey });
+
       const response = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+        model,
         contents: text,
-        config
+        config: {
+          systemInstruction: `STEA AI ASSISTANT — SYSTEM PROMPT
+
+ROLE
+You are STEA AI, the official assistant of SwahiliTech Elite Academy (STEA).
+
+ABOUT STEA & OWNER
+STEA was created and is owned by Isaya Hans Masika, a Tanzanian tech creator and web developer originally from Mbeya Region, currently based in China.
+Isaya holds a Bachelor's Degree in Computer Science from Guilin University of Electronic Technology, China.
+His education background includes Lugufu Boys Secondary School, Mbezi Beach Secondary School, and Wazo Hill Primary School.
+He is the 4th born in a family of 6 children and is passionate about technology, website development, and digital tools.
+STEA focuses on tech education, AI tools, and digital resources in Kiswahili for Tanzania and East Africa.
+When asked "Who owns STEA?" or "Who created STEA?", always answer clearly: Isaya Hans Masika.
+Website: stea.africa
+
+MISSION
+Help users with technology, smartphones, apps, AI tools, websites, digital opportunities, and beginner-friendly tech guidance in natural Kiswahili for Tanzania and East Africa.
+
+CORE BEHAVIOR
+Sound like a smart, practical, friendly Tanzanian tech assistant.
+Answers should feel natural, human, and useful — not robotic.
+
+VIBE / TONE DETECTION
+
+TIER 1 — YOUNG / CASUAL USER
+Detection: uses slang like "Inakuaje", "Oya", "Niaje", "Mambo", "Vipi", "Bro", "Mkuu"
+Tone: informal but helpful, energetic, modern, friendly. Use light Tanzanian slang only when natural.
+Natural words: mwanangu, mkuu, bro, boss, kaka. Do NOT overuse slang.
+
+TIER 2 — FORMAL / RESPECTFUL USER
+Detection: uses "Shikamoo", "Habari", "Naomba msaada", "Samahani", writes in full respectful sentences.
+Tone: respectful, clear, calm, helpful. Natural words: Karibu, Tafadhali, Ndugu yangu, Naam, Marahaba.
+
+TIER 3 — RETURNING / FAMILIAR USER
+If user sounds familiar or continues from previous chat: respond warmly, acknowledge naturally.
+Examples: "Karibu tena boss", "Tupo pamoja tena", "Leo tunakusaidia nini"
+If uncertain about vibe, use neutral friendly Kiswahili tone.
+
+LANGUAGE RULES
+- Use Kiswahili by default
+- Use English only for necessary tech terms: Update, Backup, Storage, Settings, Link, Software, Browser, App
+- If beginner-level, explain tech terms in simple Kiswahili
+- Avoid unnecessary English mixing
+- Avoid robotic or translated-sounding Kiswahili
+
+ANSWER STYLE
+Answers must be: short to medium, easy to scan, practical, direct, helpful.
+Structure when useful: 1) Direct answer 2) Simple explanation 3) Clear steps 4) Extra warning/tip if needed.
+Do not write long blocks unless necessary.
+
+AUTHENTICITY RULES
+Never say: "I am a large language model", "As an AI language model...", "My knowledge cutoff..."
+Instead: answer naturally as STEA AI. If uncertain, say so simply and guide toward next useful step.
+
+HELPFULNESS RULE
+Every answer must do at least one of: solve the problem, give steps, suggest next action, or ask a useful follow-up question. Do not give vague answers.
+
+STEA TOUCH
+When relevant, lightly mention STEA benefits: tools, guides, posts, tech opportunities, website sections.
+Examples: "Hapa STEA tuna guides za aina hiyo", "STEA tuko kwa tech kwa Kiswahili"
+Do not force promotional mentions into every answer.
+
+CLOSING STYLE
+End naturally and briefly. Examples:
+- "Ukiwa tayari, nakuelekeza hatua inayofuata."
+- "Ukikwama popote, niambie."
+- "Nikusaidie hatua inayofuata?"
+- "Tupo pamoja."
+
+STEA OUTRO — use only at end of longer helpful answers, not every reply:
+"STEA — Tech kwa Kiswahili, Opportunities kwa Afrika Mashariki. Tembelea stea.africa"`,
+        },
       });
 
-      const aiMsg = { 
-        role: "ai", 
-        text: response.text,
-      };
-      setMessages(prev => [...prev, aiMsg]);
-    } catch (error) {
-      console.error("AI Error:", error);
-      if (error.message?.includes("Requested entity was not found")) {
-        setHasCustomKey(false);
-        setMessages(prev => [...prev, { role: "ai", text: "Samahani, kuna tatizo na API key yako. Tafadhali chagua key upya kwa kutumia kitufe cha 'Use Paid Key' hapo juu." }]);
-      } else {
-        setMessages(prev => [...prev, { role: "ai", text: "Samahani, kuna tatizo limetokea. Tafadhali jaribu tena." }]);
-      }
+      setMessages(prev => [...prev, { role: "ai", text: response.text }]);
+    } catch (err) {
+      console.error("[STEA AI]", err);
+      setMessages(prev => [...prev, {
+        role: "ai",
+        text: "Samahani, kuna tatizo limetokea. Tafadhali jaribu tena au wasiliana nasi kupitia WhatsApp.",
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
   const quickActions = [
-    { label: "Nionyeshe courses", prompt: "Nionyeshe courses zinazopatikana STEA" },
-    { label: "Deals za leo", prompt: "Kuna deals gani za leo?" },
-    { label: "Website tools", prompt: "Nisaidie kupata website tools bora" },
-    { label: "Wasiliana nasi", prompt: "Nataka kuwasiliana na STEA moja kwa moja" },
+    { icon: "🎓", label: "Courses za STEA", prompt: "Nionyeshe courses zinazopatikana STEA" },
+    { icon: "🔥", label: "Deals za leo", prompt: "Kuna deals gani za leo?" },
+    { icon: "🌐", label: "Website tools", prompt: "Nisaidie kupata website tools bora" },
+    { icon: "💬", label: "Wasiliana nasi", prompt: "Nataka kuwasiliana na STEA moja kwa moja" },
   ];
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0d111a] rounded-[28px] border border-white/10 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative">
-      {/* Background Glow */}
-      <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-[#F5A623]/5 to-transparent pointer-events-none" />
+    <div style={{
+      display: "flex", flexDirection: "column",
+      height: "100%", width: "100%",
+      background: "linear-gradient(160deg, #080c18 0%, #0a0e1a 40%, #05060a 100%)",
+      borderRadius: 24,
+      overflow: "hidden",
+      position: "relative",
+      fontFamily: "'Instrument Sans', system-ui, sans-serif",
+    }}>
 
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-white/5 bg-white/[0.02] backdrop-blur-xl flex items-center justify-between z-10">
-        <div className="flex items-center gap-3">
+      {/* ── Animated background grid ── */}
+      <div style={{
+        position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
+        backgroundImage: `
+          linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px)
+        `,
+        backgroundSize: "40px 40px",
+      }} />
+
+      {/* ── Glow orbs ── */}
+      <div style={{
+        position: "absolute", top: -60, right: -60, width: 220, height: 220,
+        borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(245,166,35,0.12) 0%, transparent 70%)",
+        pointerEvents: "none", zIndex: 0,
+      }} />
+      <div style={{
+        position: "absolute", bottom: 80, left: -80, width: 260, height: 260,
+        borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(86,183,255,0.06) 0%, transparent 70%)",
+        pointerEvents: "none", zIndex: 0,
+      }} />
+
+      {/* ── Header ── */}
+      <div style={{
+        position: "relative", zIndex: 10,
+        padding: "14px 18px",
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
+        background: "rgba(255,255,255,0.02)",
+        backdropFilter: "blur(20px)",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {view === "chat" ? (
-            <button 
-              onClick={() => setView("home")}
-              className="p-1.5 hover:bg-white/10 rounded-xl text-white/50 transition-colors"
-            >
-              <ChevronLeft size={18} />
+            <button onClick={() => setView("home")} style={{
+              width: 34, height: 34, borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.05)",
+              color: "rgba(255,255,255,0.6)", cursor: "pointer",
+              display: "grid", placeItems: "center",
+            }}>
+              <ChevronLeft size={16} />
             </button>
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-[#F5A623]/10 flex items-center justify-center border border-[#F5A623]/20">
-              <Bot size={22} className="text-[#F5A623]" />
+            <div style={{
+              width: 40, height: 40, borderRadius: 13,
+              background: `linear-gradient(135deg, ${G}, ${G2})`,
+              display: "grid", placeItems: "center",
+              boxShadow: `0 0 20px rgba(245,166,35,0.3)`,
+              animation: "steaFloat 3s ease-in-out infinite",
+            }}>
+              <Zap size={20} color="#111" strokeWidth={2.5} />
             </div>
           )}
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-[15px] text-white tracking-tight">STEA AI Assistant</h2>
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: "#fff", letterSpacing: "-.02em" }}>
+                STEA AI
+              </span>
+              <div style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: "#22c55e",
+                boxShadow: "0 0 8px rgba(34,197,94,0.7)",
+              }} />
             </div>
-            <p className="text-[11px] text-white/40 font-medium uppercase tracking-wider">Msaada wa tech kwa Kiswahili</p>
+            <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.38)", fontWeight: 600, letterSpacing: ".08em", textTransform: "uppercase" }}>
+              Powered by Gemini • STEA Africa
+            </div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-2">
-          {!hasCustomKey && (
-            <button 
-              onClick={handleSelectKey}
-              className="px-3 py-1.5 bg-[#F5A623]/10 border border-[#F5A623]/20 rounded-lg text-[#F5A623] text-[10px] font-bold uppercase tracking-wider hover:bg-[#F5A623]/20 transition-all flex items-center gap-1.5"
-              title="Tumia Paid API Key yako"
-            >
-              <Sparkles size={12} />
-              Use Paid Key
-            </button>
-          )}
-          {hasCustomKey && (
-            <div className="px-3 py-1.5 bg-[#00C48C]/10 border border-[#00C48C]/20 rounded-lg text-[#00C48C] text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles size={12} />
-              Paid Key Active
-            </div>
-          )}
-          <button 
-            onClick={onClose} 
-            className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
-          >
-            <X size={18} />
-          </button>
-        </div>
+        <button onClick={onClose} style={{
+          width: 32, height: 32, borderRadius: "50%",
+          border: "1px solid rgba(255,255,255,0.1)",
+          background: "rgba(255,255,255,0.04)",
+          color: "rgba(255,255,255,0.4)", cursor: "pointer",
+          display: "grid", placeItems: "center",
+          transition: "all 0.2s",
+        }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#fff"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
+        >
+          <X size={16} />
+        </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto scrollbar-none relative">
-        {view === "home" ? (
-          <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="space-y-2">
-              <h3 className="text-2xl font-bold text-white tracking-tight">Karibu STEA! 👋</h3>
-              <p className="text-[14px] text-white/60 leading-relaxed">
-                Mimi ni msaidizi wako wa kidijitali. Naweza kukusaidia kupata kozi, tools, au kukuunganisha na timu yetu.
+      {/* ── Content ── */}
+      <div style={{ flex: 1, overflow: "hidden", position: "relative", zIndex: 1 }}>
+
+        {/* HOME VIEW */}
+        {view === "home" && (
+          <div style={{ height: "100%", overflowY: "auto", padding: "28px 20px 20px" }} className="stea-chat-scroll">
+
+            {/* Hero */}
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: 20, margin: "0 auto 16px",
+                background: `linear-gradient(135deg, ${G}, ${G2})`,
+                display: "grid", placeItems: "center",
+                boxShadow: `0 8px 32px rgba(245,166,35,0.35)`,
+              }}>
+                <Bot size={28} color="#111" strokeWidth={2} />
+              </div>
+              <h3 style={{ fontSize: 22, fontWeight: 800, color: "#fff", margin: "0 0 8px", letterSpacing: "-.04em" }}>
+                Karibu STEA AI! 🇹🇿
+              </h3>
+              <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.7, maxWidth: 260, margin: "0 auto" }}>
+                Msaidizi wako wa tech kwa Kiswahili. Uliza chochote — nitakusaidia haraka!
               </p>
             </div>
 
-            <div className="space-y-3">
-              <button 
-                onClick={() => setView("chat")}
-                className="w-full p-4 rounded-2xl bg-[#F5A623] hover:bg-[#FFD17C] text-[#111] font-bold flex items-center justify-between group transition-all shadow-lg shadow-[#F5A623]/10"
+            {/* CTA Buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+              <button onClick={() => setView("chat")} style={{
+                padding: "14px 18px",
+                borderRadius: 16,
+                border: "none",
+                background: `linear-gradient(135deg, ${G}, ${G2})`,
+                color: "#111", fontWeight: 800, fontSize: 14,
+                cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                boxShadow: `0 8px 24px rgba(245,166,35,0.3)`,
+                transition: "transform 0.2s, box-shadow 0.2s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(245,166,35,0.4)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 8px 24px rgba(245,166,35,0.3)"; }}
               >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-black/10 rounded-lg">
-                    <Sparkles size={18} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ padding: "6px 8px", background: "rgba(0,0,0,0.15)", borderRadius: 9, display: "grid", placeItems: "center" }}>
+                    <Sparkles size={16} />
                   </div>
-                  <span className="text-sm">Anza Chat na AI</span>
+                  <span>Anza Chat na AI</span>
                 </div>
-                <ChevronLeft size={18} className="rotate-180 group-hover:translate-x-1 transition-transform" />
+                <ChevronLeft size={16} style={{ transform: "rotate(180deg)" }} />
               </button>
 
-              <a 
-                href="https://wa.me/255752661307" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="w-full p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 text-white font-bold flex items-center justify-between group transition-all"
+              <a href="https://wa.me/255752661307" target="_blank" rel="noopener noreferrer" style={{
+                padding: "14px 18px", borderRadius: 16,
+                border: "1px solid rgba(37,211,102,0.2)",
+                background: "rgba(37,211,102,0.06)",
+                color: "#fff", fontWeight: 700, fontSize: 14,
+                textDecoration: "none",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                transition: "background 0.2s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(37,211,102,0.12)"}
+                onMouseLeave={e => e.currentTarget.style.background = "rgba(37,211,102,0.06)"}
               >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#25D366]/10 text-[#25D366] rounded-lg">
-                    <Phone size={18} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ padding: "6px 8px", background: "rgba(37,211,102,0.1)", borderRadius: 9, display: "grid", placeItems: "center" }}>
+                    <Phone size={16} color="#25D366" />
                   </div>
-                  <span className="text-sm">Chat nasi WhatsApp</span>
+                  <span>Chat nasi WhatsApp</span>
                 </div>
-                <ChevronLeft size={18} className="rotate-180 group-hover:translate-x-1 transition-transform" />
+                <ChevronLeft size={16} style={{ transform: "rotate(180deg)", opacity: 0.4 }} />
               </a>
             </div>
 
-            <div className="space-y-3">
-              <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">Quick Actions</p>
-              <div className="grid grid-cols-2 gap-2">
-                {quickActions.map((action) => (
-                  <button
-                    key={action.label}
-                    onClick={() => handleSend(action.prompt)}
-                    className="text-left text-[12px] p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 transition-all text-white/70 hover:text-white"
+            {/* Quick Actions */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: ".18em", marginBottom: 12 }}>
+                Maswali ya Haraka
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {quickActions.map(a => (
+                  <button key={a.label} onClick={() => handleSend(a.prompt)} style={{
+                    textAlign: "left", padding: "12px 14px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    background: "rgba(255,255,255,0.03)",
+                    color: "rgba(255,255,255,0.7)", fontSize: 12.5, fontWeight: 600,
+                    cursor: "pointer", lineHeight: 1.5,
+                    transition: "all 0.2s",
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,166,35,0.08)"; e.currentTarget.style.borderColor = "rgba(245,166,35,0.2)"; e.currentTarget.style.color = "#fff"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
                   >
-                    {action.label}
+                    <span style={{ fontSize: 16, display: "block", marginBottom: 4 }}>{a.icon}</span>
+                    {a.label}
                   </button>
                 ))}
               </div>
             </div>
           </div>
-        ) : (
-          <div className="p-5 space-y-4 min-h-full flex flex-col">
+        )}
+
+        {/* CHAT VIEW */}
+        {view === "chat" && (
+          <div style={{ height: "100%", overflowY: "auto", padding: "20px 16px 8px" }} className="stea-chat-scroll">
             {messages.length === 0 && (
-              <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-4 opacity-40">
-                <div className="w-16 h-16 bg-white/[0.02] rounded-3xl flex items-center justify-center border border-white/5">
-                  <MessageSquare size={28} className="text-white" />
-                </div>
-                <p className="text-sm text-white max-w-[200px]">Uliza chochote kuhusu tech au STEA...</p>
+              <div style={{ textAlign: "center", padding: "40px 20px", opacity: 0.35 }}>
+                <MessageSquare size={32} color="#fff" style={{ margin: "0 auto 12px" }} />
+                <p style={{ fontSize: 13, color: "#fff", margin: 0 }}>Uliza chochote kuhusu tech au STEA...</p>
               </div>
             )}
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                <div className={`max-w-[80%] p-3.5 rounded-2xl text-[14px] leading-relaxed break-words overflow-hidden ${
-                  msg.role === "user" 
-                    ? "bg-[#F5A623] text-[#111] font-medium rounded-tr-none shadow-lg shadow-[#F5A623]/10" 
-                    : "bg-white/[0.05] border border-white/10 text-white/90 rounded-tl-none"
-                }`} style={{ wordBreak: "break-word" }}>
-                  <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 prose-code:text-[#F5A623] break-words">
-                    <ReactMarkdown>{msg.text}</ReactMarkdown>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {messages.map((msg, i) => <MsgBubble key={i} msg={msg} />)}
             {loading && (
-              <div className="flex justify-start animate-in fade-in duration-300">
-                <div className="bg-white/[0.03] border border-white/5 p-3 rounded-2xl rounded-tl-none flex items-center gap-3">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#F5A623]" />
-                  <span className="text-[12px] text-white/40 font-medium">STEA AI anafikiria...</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 10, flexShrink: 0,
+                  background: `linear-gradient(135deg, ${G}, ${G2})`,
+                  display: "grid", placeItems: "center",
+                }}>
+                  <Zap size={14} color="#111" strokeWidth={2.5} />
+                </div>
+                <div style={{
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "4px 18px 18px 18px",
+                  backdropFilter: "blur(10px)",
+                }}>
+                  <TypingDots />
                 </div>
               </div>
             )}
-            <div ref={chatEndRef} className="h-2" />
+            <div ref={chatEndRef} />
           </div>
         )}
       </div>
 
-      {/* Input Area */}
-      {(view === "chat" || messages.length > 0) && (
-        <div className="p-4 border-t border-white/5 bg-white/[0.01] backdrop-blur-xl z-10">
-          <div className="flex items-center gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5 focus-within:border-[#F5A623]/50 transition-all">
-            <input 
+      {/* ── Input Area ── */}
+      <div style={{
+        position: "relative", zIndex: 10,
+        padding: "12px 16px 16px",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(0,0,0,0.3)",
+        backdropFilter: "blur(20px)",
+      }}>
+        {view === "home" && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 18, padding: "6px 8px 6px 16px",
+            transition: "border-color 0.2s",
+          }}
+            onFocus={e => e.currentTarget.style.borderColor = `rgba(245,166,35,0.4)`}
+            onBlur={e => e.currentTarget.style.borderColor = `rgba(255,255,255,0.08)`}
+          >
+            <input
+              ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Andika swali lako hapa..."
-              className="flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-white/20"
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSend()}
+              onFocus={e => e.currentTarget.closest("div").style.borderColor = `rgba(245,166,35,0.4)`}
+              onBlur={e => e.currentTarget.closest("div").style.borderColor = `rgba(255,255,255,0.08)`}
+              placeholder="Uliza swali lako..."
+              style={{
+                flex: 1, background: "transparent", border: "none", outline: "none",
+                color: "#fff", fontSize: 14,
+              }}
             />
-            <button 
-              onClick={() => handleSend()}
-              disabled={loading || !input.trim()}
-              className="w-10 h-10 flex items-center justify-center bg-[#F5A623] text-[#111] rounded-xl font-bold disabled:opacity-30 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-[#F5A623]/20"
-            >
-              <Send size={18} />
+            <button onClick={() => handleSend()} disabled={!input.trim()} style={{
+              width: 38, height: 38, borderRadius: 12,
+              border: "none",
+              background: input.trim() ? `linear-gradient(135deg, ${G}, ${G2})` : "rgba(255,255,255,0.07)",
+              color: input.trim() ? "#111" : "rgba(255,255,255,0.2)",
+              cursor: input.trim() ? "pointer" : "default",
+              display: "grid", placeItems: "center",
+              transition: "all 0.2s",
+            }}>
+              <Send size={16} />
             </button>
           </div>
-          <p className="text-[9px] text-center text-white/20 mt-3 uppercase tracking-widest font-bold">Powered by SwahiliTech AI</p>
+        )}
+
+        {view === "chat" && (
+          <div style={{
+            display: "flex", alignItems: "flex-end", gap: 10,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 18, padding: "8px 8px 8px 16px",
+          }}
+            onFocusCapture={e => e.currentTarget.style.borderColor = `rgba(245,166,35,0.4)`}
+            onBlurCapture={e => e.currentTarget.style.borderColor = `rgba(255,255,255,0.08)`}
+          >
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              placeholder="Andika swali lako... (Enter kutuma)"
+              rows={1}
+              style={{
+                flex: 1, background: "transparent", border: "none", outline: "none",
+                color: "#fff", fontSize: 14, lineHeight: 1.6, resize: "none",
+                fontFamily: "inherit", maxHeight: 120, overflowY: "auto",
+              }}
+            />
+            <button onClick={() => handleSend()} disabled={loading || !input.trim()} style={{
+              width: 40, height: 40, borderRadius: 13, flexShrink: 0,
+              border: "none",
+              background: (!loading && input.trim()) ? `linear-gradient(135deg, ${G}, ${G2})` : "rgba(255,255,255,0.07)",
+              color: (!loading && input.trim()) ? "#111" : "rgba(255,255,255,0.2)",
+              cursor: (!loading && input.trim()) ? "pointer" : "default",
+              display: "grid", placeItems: "center",
+              transition: "all 0.2s",
+              boxShadow: (!loading && input.trim()) ? `0 4px 16px rgba(245,166,35,0.3)` : "none",
+            }}>
+              <Send size={17} />
+            </button>
+          </div>
+        )}
+        <div style={{ textAlign: "center", marginTop: 8, fontSize: 9.5, color: "rgba(255,255,255,0.18)", fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase" }}>
+          STEA AI • Powered by Gemini
         </div>
-      )}
+      </div>
     </div>
   );
 }
-
-
