@@ -2,16 +2,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helper Functions ──────────────────────────────
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // Admin check — NO email_verified requirement (was causing permission errors)
+    // NO email_verified — was blocking admin saves
     function isAdmin() {
       return request.auth != null && (
         request.auth.token.email == "swahilitecheliteacademy@gmail.com" ||
@@ -24,99 +19,79 @@ service cloud.firestore {
       );
     }
 
-    // Views-only update (for public read tracking)
     function isOnlyViewsUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']);
     }
 
-    // ── Users ─────────────────────────────────────────
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || isAuthenticated();
+      allow read: if isAuthenticated() || isAdmin();
       allow create: if isAuthenticated();
-      allow update: if isOwner(userId) || isAdmin();
+      allow update: if request.auth.uid == userId || isAdmin();
       allow delete: if isAdmin();
     }
 
-    // ── Content — relaxed validation (admin is trusted) ──
+    // Content collections — NO isRecent, NO strict validation (admin trusted)
     match /tips/{id} {
       allow read: if true;
       allow create, update: if isAdmin();
       allow update: if isOnlyViewsUpdate();
       allow delete: if isAdmin();
     }
-
     match /updates/{id} {
       allow read: if true;
       allow create, update: if isAdmin();
       allow update: if isOnlyViewsUpdate();
       allow delete: if isAdmin();
     }
-
     match /deals/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
-
     match /courses/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
-
     match /products/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
-
     match /websites/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
-
     match /prompts/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
-
     match /promptLab/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
-
     match /faqs/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
-
-    // ── Site Settings ─────────────────────────────────
     match /site_settings/{id} {
       allow read: if true;
       allow write: if isAdmin();
     }
-
-    // ── Notifications ─────────────────────────────────
     match /fcm_tokens/{id} {
       allow read: if isAdmin();
       allow create, update: if true;
       allow delete: if isAdmin();
     }
-
     match /notification_queue/{id} {
       allow read, write: if isAdmin();
     }
-
-    // ── Support / Chat ────────────────────────────────
     match /support_messages/{id} {
       allow read, write: if true;
     }
-
     match /chats/{userId} {
       allow read, write: if isAuthenticated();
       match /messages/{msgId} {
         allow read, write: if isAuthenticated();
       }
     }
-
-    // ── Default deny ──────────────────────────────────
     match /{path=**} {
       allow read, write: if false;
     }
