@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { getFirebaseDb, collection, onSnapshot, query, limit, doc, updateDoc, increment, handleFirestoreError, OperationType, orderBy } from "../firebase.js";
+import { getFirebaseDb, collection, onSnapshot, query, limit, doc, updateDoc, increment, handleFirestoreError, OperationType } from "../firebase.js";
 
-export function useCollection(colName, orderField = "createdAt", limitCount = 50) {
+export function useCollection(colName, orderField = "createdAt", limitCount = 100) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -9,77 +9,40 @@ export function useCollection(colName, orderField = "createdAt", limitCount = 50
     const db = getFirebaseDb();
     if (!db) return;
 
-    // Timeout to prevent infinite loading state if network is slow
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 6000);
+    // Fast timeout — 4s max
+    const timer = setTimeout(() => setLoading(false), 4000);
 
-    let unsubFallback = null;
-
-    // Use orderBy to let Firestore handle sorting and limit to reduce reads
-    const q = query(collection(db, colName), orderBy(orderField, "desc"), limit(limitCount));
+    // NO orderBy — avoids index requirement, fetch all then sort in memory
+    const q = query(collection(db, colName), limit(1000));
     const unsub = onSnapshot(q, (snap) => {
       clearTimeout(timer);
-      
-      if (snap.empty) {
-        // Fallback: if no documents have the orderField, fetch without orderBy
-        console.log(`No docs with ${orderField} in ${colName}, trying fallback...`);
-        if (!unsubFallback) {
-          const fallbackQ = query(collection(db, colName), limit(limitCount));
-          unsubFallback = onSnapshot(fallbackQ, (fallbackSnap) => {
-            console.log(`Fetched ${fallbackSnap.size} fallback docs from ${colName}`);
-            const fetchedDocs = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setDocs(fetchedDocs);
-            setLoading(false);
-          }, (err) => {
-            console.error(`Error fetching fallback ${colName}:`, err);
-            setLoading(false);
-          });
-        }
-        return;
-      }
+      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // If we have documents, and we previously subscribed to fallback, unsubscribe
-      if (unsubFallback) {
-        unsubFallback();
-        unsubFallback = null;
-      }
-
-      console.log(`Fetched ${snap.size} docs from ${colName}`);
-      const fetchedDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      
-      // We still sort in memory to handle the case where a local write has a null serverTimestamp
-      // and we want it to immediately appear at the top.
-      fetchedDocs.sort((a, b) => {
-        const fieldA = a.updatedAt || a[orderField];
-        const fieldB = b.updatedAt || b[orderField];
-        
-        const valA = fieldA?.toDate ? fieldA.toDate() : fieldA;
-        const valB = fieldB?.toDate ? fieldB.toDate() : fieldB;
-        
-        const timeA = valA === null || valA === undefined ? Date.now() + 10000 : (typeof valA === 'number' ? valA : new Date(valA).getTime() || 0);
-        const timeB = valB === null || valB === undefined ? Date.now() + 10000 : (typeof valB === 'number' ? valB : new Date(valB).getTime() || 0);
-        
-        return timeB - timeA;
+      // Sort in memory — newest first, pending serverTimestamp at top
+      fetched.sort((a, b) => {
+        const getTime = (doc) => {
+          const val = doc.updatedAt || doc[orderField];
+          if (!val) return Date.now() + 9999999; // pending = top
+          if (val?.toDate) return val.toDate().getTime();
+          if (typeof val === "number") return val;
+          return new Date(val).getTime() || 0;
+        };
+        return getTime(b) - getTime(a);
       });
 
-      setDocs(fetchedDocs);
+      setDocs(fetched);
       setLoading(false);
     }, (err) => {
       clearTimeout(timer);
-      console.error(`Error fetching ${colName}:`, err);
+      console.error(`[useCollection] ${colName}:`, err.message);
       if (err.message.includes("insufficient permissions")) {
         handleFirestoreError(err, OperationType.LIST, colName);
       }
       setLoading(false);
     });
 
-    return () => {
-      clearTimeout(timer);
-      unsub();
-      if (unsubFallback) unsubFallback();
-    };
-  }, [colName, orderField, limitCount]);
+    return () => { clearTimeout(timer); unsub(); };
+  }, [colName, orderField]);
 
   return { docs, loading };
 }
@@ -88,13 +51,9 @@ export async function incrementViews(colName, docId) {
   const db = getFirebaseDb();
   if (!db) return;
   try {
-    const ref = doc(db, colName, docId);
-    await updateDoc(ref, { views: increment(1) });
+    await updateDoc(doc(db, colName, docId), { views: increment(1) });
   } catch (e) {
-    console.warn("Error incrementing views:", e.message);
-    if (e.message.includes("insufficient permissions")) {
-      handleFirestoreError(e, OperationType.UPDATE, `${colName}/${docId}`);
-    }
+    console.warn("incrementViews error:", e.message);
   }
 }
 
@@ -102,17 +61,16 @@ export function timeAgo(timestamp) {
   if (!timestamp) return "";
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
   const seconds = Math.floor((new Date() - date) / 1000);
-  let interval = seconds / 31536000;
-  if (interval > 1) return Math.floor(interval) + " years ago";
-  interval = seconds / 2592000;
-  if (interval > 1) return Math.floor(interval) + " months ago";
-  interval = seconds / 86400;
-  if (interval > 1) return Math.floor(interval) + " days ago";
-  interval = seconds / 3600;
-  if (interval > 1) return Math.floor(interval) + " hours ago";
-  interval = seconds / 60;
-  if (interval > 1) return Math.floor(interval) + " minutes ago";
-  return Math.floor(seconds) + " seconds ago";
+  if (seconds < 60) return "just now";
+  const intervals = [
+    [31536000, "year"], [2592000, "month"], [86400, "day"],
+    [3600, "hour"], [60, "minute"],
+  ];
+  for (const [div, label] of intervals) {
+    const n = Math.floor(seconds / div);
+    if (n >= 1) return `${n} ${label}${n > 1 ? "s" : ""} ago`;
+  }
+  return "just now";
 }
 
 export function fmtViews(v) {
