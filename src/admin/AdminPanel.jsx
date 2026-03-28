@@ -2080,179 +2080,582 @@ function SponsoredAdsManager() {
 // ══════════════════════════════════════════════════════
 function CommerceManager() {
   const [orders, setOrders] = useState([]);
-  const [subs, setSubs] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [notes, setNotes] = useState({});
+  const [toast, setToast] = useState(null);
+  const [confirm, setConfirm] = useState(null);
   const db = getFirebaseDb();
+  const toast_ = (msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
 
   useEffect(() => {
     if (!db) return;
-    const unsubOrders = onSnapshot(collection(db, "orders"), (snap) => setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubSubs = onSnapshot(collection(db, "subscriptions"), (snap) => setSubs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { unsubOrders(); unsubSubs(); };
+    const q = query(collection(db, "orders"), limit(500));
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map(d => ({id:d.id,...d.data()}));
+      data.sort((a,b) => {
+        const ta = a.createdAt?.toDate?.() || new Date(a.createdAt||0);
+        const tb = b.createdAt?.toDate?.() || new Date(b.createdAt||0);
+        return tb - ta;
+      });
+      setOrders(data);
+    }, err => console.error("orders:", err));
+    return () => unsub();
   }, [db]);
 
-  const approveOrder = async (id) => {
-    await updateDoc(doc(db, "orders", id), { status: "approved" });
+  const updateOrder = async (id, fields) => {
+    try { await updateDoc(doc(db,"orders",id), {...fields, updatedAt: serverTimestamp()}); toast_("Order imesahihishwa!"); }
+    catch(e) { toast_(e.message,"error"); }
   };
+
+  const counts = {
+    all: orders.length,
+    pending: orders.filter(o=>o.orderStatus==="pending"||o.status==="pending").length,
+    approved: orders.filter(o=>o.orderStatus==="approved"||o.status==="approved").length,
+    completed: orders.filter(o=>o.orderStatus==="completed"||o.status==="completed").length,
+    rejected: orders.filter(o=>o.orderStatus==="rejected"||o.status==="rejected").length,
+  };
+
+  const filtered = filter==="all" ? orders : orders.filter(o=>(o.orderStatus||o.status)===filter);
+  const statusColor = s => ({pending:"#f59e0b",approved:"#22c55e",completed:"#60a5fa",rejected:"#ef4444"}[s]||"#94a3b8");
+  const fmtDate = ts => { try { const d=ts?.toDate?ts.toDate():new Date(ts); return d.toLocaleDateString()+" "+d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}); } catch{return "-";} };
 
   return (
     <div>
-      <div style={{ borderRadius:20, border:"1px solid rgba(255,255,255,.08)", background:"#141823", padding:24, marginBottom:28 }}>
-        <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Orders</h3>
-        <div style={{ display: "grid", gap: 12 }}>
-          {orders.map(o => (
-            <div key={o.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>Order: {o.dealId}</div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Amount: {o.amount} | Status: {o.status}</div>
-              </div>
-              {o.status === "pending" && <Btn onClick={() => approveOrder(o.id)} color={G} textColor="#111" style={{ padding: "8px 14px" }}>Approve</Btn>}
-            </div>
-          ))}
-        </div>
+      {toast && <Toast msg={toast.msg} type={toast.type}/>}
+      {confirm && <ConfirmDialog {...confirm}/>}
+      {/* Summary */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:24}}>
+        {[["all","📋","All",counts.all,"#60a5fa"],["pending","⏳","Pending",counts.pending,"#f59e0b"],["approved","✅","Approved",counts.approved,"#22c55e"],["completed","🏁","Completed",counts.completed,"#56b7ff"],["rejected","❌","Rejected",counts.rejected,"#ef4444"]].map(([f,ic,lb,val,col])=>(
+          <div key={f} onClick={()=>setFilter(f)} style={{borderRadius:14,padding:"14px 16px",border:`1px solid ${filter===f?col+"55":"rgba(255,255,255,.07)"}`,background:filter===f?col+"11":"#141823",cursor:"pointer",transition:"all .2s"}}>
+            <div style={{fontSize:20,marginBottom:4}}>{ic}</div>
+            <div style={{fontSize:22,fontWeight:800,color:col}}>{val}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,.4)"}}>{lb}</div>
+          </div>
+        ))}
       </div>
-      <div style={{ borderRadius:20, border:"1px solid rgba(255,255,255,.08)", background:"#141823", padding:24 }}>
-        <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Subscriptions</h3>
-        <div style={{ display: "grid", gap: 12 }}>
-          {subs.map(s => (
-            <div key={s.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>Sub: {s.dealId}</div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Status: {s.status} | End: {s.endDate}</div>
+
+      {/* Orders list */}
+      {filtered.length===0 && <div style={{textAlign:"center",padding:"40px 20px",color:"rgba(255,255,255,.25)",fontSize:14}}>Hakuna orders {filter!=="all"?`(${filter})`:""}. Data itaonekana hapa baada ya orders kuwasilishwa.</div>}
+      <div style={{display:"grid",gap:10}}>
+        {filtered.map(o => {
+          const st = o.orderStatus || o.status || "pending";
+          return (
+            <div key={o.id} style={{borderRadius:16,border:`1px solid ${statusColor(st)}33`,background:"#141823",padding:"16px 18px"}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+                    <span style={{fontWeight:800,fontSize:15}}>{o.customerName||o.buyerName||"Customer"}</span>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99,background:statusColor(st)+"22",color:statusColor(st)}}>{st}</span>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,.3)"}}>#{o.id.slice(-8)}</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8,fontSize:13,color:"rgba(255,255,255,.5)",marginBottom:8}}>
+                    <span>📦 {o.productName||o.dealId||o.itemName||"—"}</span>
+                    <span>💰 TZS {o.amount||o.amountPaid||"—"}</span>
+                    <span>💳 {o.paymentMethod||"—"}</span>
+                    <span>📅 {fmtDate(o.createdAt)}</span>
+                  </div>
+                  {o.customerPhone && <div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>📱 {o.customerPhone}</div>}
+                  {o.customerEmail && <div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>📧 {o.customerEmail}</div>}
+                </div>
+                {/* Actions */}
+                <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
+                  {st==="pending" && <>
+                    <Btn onClick={()=>updateOrder(o.id,{orderStatus:"approved"})} color="rgba(34,197,94,.15)" textColor="#22c55e" style={{padding:"6px 12px",fontSize:12}}>✅ Approve</Btn>
+                    <Btn onClick={()=>updateOrder(o.id,{orderStatus:"rejected"})} color="rgba(239,68,68,.12)" textColor="#fca5a5" style={{padding:"6px 12px",fontSize:12}}>❌ Reject</Btn>
+                  </>}
+                  {st==="approved" && (
+                    <Btn onClick={()=>updateOrder(o.id,{orderStatus:"completed"})} color="rgba(96,165,250,.15)" textColor="#60a5fa" style={{padding:"6px 12px",fontSize:12}}>🏁 Complete</Btn>
+                  )}
+                  {(st==="pending"||st==="approved") && (
+                    <Btn onClick={()=>{ const n=notes[o.id]||""; updateOrder(o.id,{adminNote:n}); }} color="rgba(245,166,35,.1)" textColor={G} style={{padding:"6px 12px",fontSize:12}}>💾 Note</Btn>
+                  )}
+                </div>
+              </div>
+              {/* Note field */}
+              <div style={{marginTop:10}}>
+                <input value={notes[o.id]||o.adminNote||""} onChange={e=>setNotes(n=>({...n,[o.id]:e.target.value}))}
+                  placeholder="Admin note (optional)..."
+                  style={{width:"100%",height:36,borderRadius:9,border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.04)",color:"#fff",padding:"0 12px",outline:"none",fontSize:13}}/>
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 // ══════════════════════════════════════════════════════
-// PAYMENT REVIEW MANAGER
+// PAYMENT REVIEW MANAGER — FULL
 // ══════════════════════════════════════════════════════
 function PaymentReviewManager() {
   const [payments, setPayments] = useState([]);
+  const [filter, setFilter] = useState("pending");
+  const [notes, setNotes] = useState({});
+  const [preview, setPreview] = useState(null);
+  const [toast, setToast] = useState(null);
   const db = getFirebaseDb();
+  const toast_ = (msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
 
   useEffect(() => {
     if (!db) return;
-    const q = query(collection(db, "payments"), orderBy("submittedAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => setPayments(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => console.error("Error loading payments:", err));
+    const q = query(collection(db,"payments"), limit(500));
+    const unsub = onSnapshot(q, snap => {
+      const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+      data.sort((a,b) => {
+        const ta = a.submittedAt?.toDate?.() || new Date(a.submittedAt||0);
+        const tb = b.submittedAt?.toDate?.() || new Date(b.submittedAt||0);
+        return tb - ta;
+      });
+      setPayments(data);
+    }, err => console.error("payments:", err));
     return () => unsub();
   }, [db]);
 
-  const updateStatus = async (id, status) => {
-    await updateDoc(doc(db, "payments", id), { reviewStatus: status, reviewedAt: serverTimestamp() });
+  const review = async (id, status, note) => {
+    try {
+      await updateDoc(doc(db,"payments",id), { reviewStatus:status, reviewNote:note||"", reviewedAt:serverTimestamp() });
+      // Also update linked order if exists
+      const p = payments.find(x=>x.id===id);
+      if (p?.orderId) {
+        try { await updateDoc(doc(db,"orders",p.orderId), { paymentStatus:status, updatedAt:serverTimestamp() }); } catch(e){}
+      }
+      toast_(`Payment ${status}!`);
+    } catch(e) { toast_(e.message,"error"); }
+  };
+
+  const counts = { all:payments.length, pending:payments.filter(p=>p.reviewStatus==="pending"||!p.reviewStatus).length, approved:payments.filter(p=>p.reviewStatus==="approved").length, rejected:payments.filter(p=>p.reviewStatus==="rejected").length };
+  const filtered = filter==="all" ? payments : payments.filter(p=>(p.reviewStatus||"pending")===filter);
+  const statusColor = s => ({pending:"#f59e0b",approved:"#22c55e",rejected:"#ef4444"}[s]||"#f59e0b");
+  const fmtDate = ts => { try { const d=ts?.toDate?ts.toDate():new Date(ts); return d.toLocaleDateString(); } catch{return "-";} };
+
+  return (
+    <div>
+      {toast && <Toast msg={toast.msg} type={toast.type}/>}
+      {/* Image preview modal */}
+      {preview && (
+        <div onClick={()=>setPreview(null)} style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.9)",display:"grid",placeItems:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{position:"relative",maxWidth:600,width:"100%"}}>
+            <button onClick={()=>setPreview(null)} style={{position:"absolute",top:-40,right:0,background:"none",border:"none",color:"#fff",fontSize:24,cursor:"pointer"}}>✕</button>
+            <img src={preview} alt="Payment proof" style={{width:"100%",borderRadius:16,objectFit:"contain",maxHeight:"80vh"}} referrerPolicy="no-referrer"/>
+          </div>
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+        {[["pending","⏳","Pending Review",counts.pending,"#f59e0b"],["approved","✅","Approved",counts.approved,"#22c55e"],["rejected","❌","Rejected",counts.rejected,"#ef4444"],["all","📋","All",counts.all,"#60a5fa"]].map(([f,ic,lb,val,col])=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{padding:"9px 18px",borderRadius:12,border:`1px solid ${filter===f?col:col+"33"}`,background:filter===f?col+"18":"transparent",color:filter===f?col:"rgba(255,255,255,.5)",fontWeight:800,fontSize:13,cursor:"pointer"}}>
+            {ic} {lb} ({val})
+          </button>
+        ))}
+      </div>
+
+      {filtered.length===0 && <div style={{textAlign:"center",padding:"40px 20px",color:"rgba(255,255,255,.25)",fontSize:14}}>Hakuna malipo ya {filter}. Malipo yataonekana hapa yanapowasilishwa.</div>}
+
+      <div style={{display:"grid",gap:12}}>
+        {filtered.map(p => {
+          const st = p.reviewStatus || "pending";
+          return (
+            <div key={p.id} style={{borderRadius:16,border:`1px solid ${statusColor(st)}33`,background:"#141823",padding:"16px 18px"}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:14,flexWrap:"wrap"}}>
+                {/* Screenshot */}
+                {p.screenshotUrl && (
+                  <div onClick={()=>setPreview(p.screenshotUrl)} style={{width:80,height:80,borderRadius:12,overflow:"hidden",flexShrink:0,cursor:"pointer",border:"1px solid rgba(255,255,255,.1)"}}>
+                    <img src={p.screenshotUrl} alt="proof" style={{width:"100%",height:"100%",objectFit:"cover"}} referrerPolicy="no-referrer"/>
+                    <div style={{fontSize:9,textAlign:"center",color:"rgba(255,255,255,.4)",marginTop:2}}>Tap to view</div>
+                  </div>
+                )}
+                {!p.screenshotUrl && (
+                  <div style={{width:72,height:72,borderRadius:12,background:"rgba(255,255,255,.04)",display:"grid",placeItems:"center",flexShrink:0,fontSize:24}}>📄</div>
+                )}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+                    <span style={{fontWeight:800,fontSize:15}}>{p.customerName||p.buyerName||"Customer"}</span>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99,background:statusColor(st)+"22",color:statusColor(st)}}>{st}</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:6,fontSize:13,color:"rgba(255,255,255,.5)",marginBottom:8}}>
+                    <span>💰 TZS {p.amountPaid||p.amount||"—"}</span>
+                    <span>💳 {p.paymentMethod||"—"}</span>
+                    <span>🔖 Ref: {p.paymentReference||p.reference||"—"}</span>
+                    <span>📅 {fmtDate(p.submittedAt||p.createdAt)}</span>
+                  </div>
+                  {p.productName && <div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>📦 {p.productName}</div>}
+                  {p.reviewNote && <div style={{marginTop:8,padding:"8px 12px",borderRadius:9,background:"rgba(255,255,255,.04)",fontSize:12,color:"rgba(255,255,255,.5)"}}>Note: {p.reviewNote}</div>}
+                </div>
+                {st==="pending" && (
+                  <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
+                    <Btn onClick={()=>review(p.id,"approved",notes[p.id])} color="rgba(34,197,94,.15)" textColor="#22c55e" style={{padding:"8px 14px",fontSize:12}}>✅ Approve</Btn>
+                    <Btn onClick={()=>review(p.id,"rejected",notes[p.id])} color="rgba(239,68,68,.12)" textColor="#fca5a5" style={{padding:"8px 14px",fontSize:12}}>❌ Reject</Btn>
+                  </div>
+                )}
+              </div>
+              {st==="pending" && (
+                <div style={{marginTop:10}}>
+                  <input value={notes[p.id]||""} onChange={e=>setNotes(n=>({...n,[p.id]:e.target.value}))}
+                    placeholder="Review note (optional — will be saved with decision)..."
+                    style={{width:"100%",height:36,borderRadius:9,border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.04)",color:"#fff",padding:"0 12px",outline:"none",fontSize:13}}/>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// SUBSCRIPTION MANAGER — FULL
+// ══════════════════════════════════════════════════════
+function SubscriptionManager() {
+  const [subs, setSubs] = useState([]);
+  const [filter, setFilter] = useState("active");
+  const [toast, setToast] = useState(null);
+  const [extendDays, setExtendDays] = useState({});
+  const db = getFirebaseDb();
+  const toast_ = (msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
+
+  useEffect(() => {
+    if (!db) return;
+    const q = query(collection(db,"subscriptions"), limit(500));
+    const unsub = onSnapshot(q, snap => {
+      const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+      data.sort((a,b)=>{
+        const ta = a.endDate?.toDate?.() || new Date(a.endDate||0);
+        const tb = b.endDate?.toDate?.() || new Date(b.endDate||0);
+        return ta - tb;
+      });
+      setSubs(data);
+    }, err => console.error("subs:", err));
+    return () => unsub();
+  }, [db]);
+
+  const updateSub = async (id, fields) => {
+    try { await updateDoc(doc(db,"subscriptions",id), {...fields, updatedAt:serverTimestamp()}); toast_("Imesahihishwa!"); }
+    catch(e) { toast_(e.message,"error"); }
+  };
+
+  const extendSub = async (id, days) => {
+    const sub = subs.find(s=>s.id===id);
+    if (!sub) return;
+    const endDate = sub.endDate?.toDate?.() || new Date(sub.endDate || Date.now());
+    endDate.setDate(endDate.getDate() + parseInt(days||30));
+    await updateSub(id, { endDate: endDate.toISOString(), status: "active" });
+  };
+
+  const daysLeft = (endDate) => {
+    try {
+      const end = endDate?.toDate?.() || new Date(endDate);
+      const diff = Math.ceil((end - new Date()) / (1000*60*60*24));
+      return diff;
+    } catch { return null; }
+  };
+
+  const categorize = (sub) => {
+    const dl = daysLeft(sub.endDate);
+    if (sub.status==="cancelled") return "cancelled";
+    if (dl === null) return "active";
+    if (dl < 0) return "expired";
+    if (dl <= 3) return "expiring";
+    return "active";
+  };
+
+  const cats = { active:subs.filter(s=>categorize(s)==="active"), expiring:subs.filter(s=>categorize(s)==="expiring"), expired:subs.filter(s=>categorize(s)==="expired"||s.status==="expired"), cancelled:subs.filter(s=>s.status==="cancelled") };
+  const filtered = filter==="all" ? subs : (cats[filter]||[]);
+  const fmtDate = ts => { try { const d=ts?.toDate?ts.toDate():new Date(ts); return d.toLocaleDateString(); } catch{return "-";} };
+
+  return (
+    <div>
+      {toast && <Toast msg={toast.msg} type={toast.type}/>}
+      {/* Summary tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+        {[["active","🟢","Active",cats.active.length,"#22c55e"],["expiring","🟡","Expiring Soon",cats.expiring.length,"#f59e0b"],["expired","🔴","Expired",cats.expired.length,"#ef4444"],["cancelled","⚫","Cancelled",cats.cancelled.length,"#94a3b8"],["all","📋","All",subs.length,"#60a5fa"]].map(([f,ic,lb,val,col])=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{padding:"9px 18px",borderRadius:12,border:`1px solid ${filter===f?col:col+"33"}`,background:filter===f?col+"18":"transparent",color:filter===f?col:"rgba(255,255,255,.5)",fontWeight:800,fontSize:13,cursor:"pointer"}}>
+            {ic} {lb} ({val})
+          </button>
+        ))}
+      </div>
+
+      {filtered.length===0 && <div style={{textAlign:"center",padding:"40px 20px",color:"rgba(255,255,255,.25)",fontSize:14}}>Hakuna subscriptions za "{filter}". Subscriptions zitaonekana hapa zikiwekwa.</div>}
+
+      <div style={{display:"grid",gap:10}}>
+        {filtered.map(s => {
+          const dl = daysLeft(s.endDate);
+          const cat = categorize(s);
+          const catColor = {active:"#22c55e",expiring:"#f59e0b",expired:"#ef4444",cancelled:"#94a3b8"}[cat]||"#22c55e";
+          return (
+            <div key={s.id} style={{borderRadius:16,border:`1px solid ${catColor}33`,background:"#141823",padding:"16px 18px"}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+                    <span style={{fontWeight:800,fontSize:15}}>{s.customerName||s.buyerName||"Customer"}</span>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99,background:catColor+"22",color:catColor}}>{cat}</span>
+                    {dl !== null && <span style={{fontSize:11,color:dl<=3?"#f59e0b":"rgba(255,255,255,.35)"}}>{dl>=0?`${dl} days left`:"Expired"}</span>}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:6,fontSize:13,color:"rgba(255,255,255,.5)"}}>
+                    <span>📦 {s.productName||s.dealTitle||s.planName||"—"}</span>
+                    <span>📅 Start: {fmtDate(s.startDate||s.createdAt)}</span>
+                    <span>🏁 End: {fmtDate(s.endDate)}</span>
+                    <span>💰 {s.amount||s.price||"—"}</span>
+                  </div>
+                  {s.customerPhone && <div style={{fontSize:12,color:"rgba(255,255,255,.35)",marginTop:4}}>📱 {s.customerPhone}</div>}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
+                  <div style={{display:"flex",gap:4}}>
+                    <input value={extendDays[s.id]||"30"} onChange={e=>setExtendDays(d=>({...d,[s.id]:e.target.value}))}
+                      style={{width:48,height:32,borderRadius:8,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.05)",color:"#fff",textAlign:"center",fontSize:12,outline:"none"}}/>
+                    <Btn onClick={()=>extendSub(s.id,extendDays[s.id]||30)} color="rgba(34,197,94,.15)" textColor="#22c55e" style={{padding:"6px 10px",fontSize:11}}>+Extend</Btn>
+                  </div>
+                  {s.status!=="cancelled" && <Btn onClick={()=>updateSub(s.id,{status:"cancelled"})} color="rgba(239,68,68,.1)" textColor="#fca5a5" style={{padding:"6px 10px",fontSize:11}}>✕ Cancel</Btn>}
+                  {(cat==="expired"||s.status==="cancelled") && <Btn onClick={()=>updateSub(s.id,{status:"active"})} color="rgba(34,197,94,.1)" textColor="#22c55e" style={{padding:"6px 10px",fontSize:11}}>↩ Renew</Btn>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// DELIVERY MANAGER — FULL
+// ══════════════════════════════════════════════════════
+function DeliveryManager() {
+  const [deliveries, setDeliveries] = useState([]);
+  const [filter, setFilter] = useState("pending");
+  const [notes, setNotes] = useState({});
+  const [newDel, setNewDel] = useState({customer:"",product:"",accessType:"digital_link",accessDetails:"",phone:"",email:""});
+  const [showForm, setShowForm] = useState(false);
+  const [toast, setToast] = useState(null);
+  const db = getFirebaseDb();
+  const toast_ = (msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
+
+  useEffect(() => {
+    if (!db) return;
+    const q = query(collection(db,"deliveries"), limit(500));
+    const unsub = onSnapshot(q, snap => {
+      const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+      data.sort((a,b)=>{
+        const ta = a.createdAt?.toDate?.() || new Date(a.createdAt||0);
+        const tb = b.createdAt?.toDate?.() || new Date(b.createdAt||0);
+        return tb - ta;
+      });
+      setDeliveries(data);
+    }, err => console.error("deliveries:", err));
+    return () => unsub();
+  }, [db]);
+
+  const updateDel = async (id, fields) => {
+    try { await updateDoc(doc(db,"deliveries",id), {...fields, updatedAt:serverTimestamp()}); toast_("Imesahihishwa!"); }
+    catch(e) { toast_(e.message,"error"); }
+  };
+
+  const createDelivery = async () => {
+    if (!newDel.customer.trim()) { toast_("Weka jina la customer","error"); return; }
+    try {
+      await addDoc(collection(db,"deliveries"), { ...newDel, deliveryStatus:"pending", createdAt:serverTimestamp() });
+      setNewDel({customer:"",product:"",accessType:"digital_link",accessDetails:"",phone:"",email:""});
+      setShowForm(false);
+      toast_("Delivery imeundwa!");
+    } catch(e) { toast_(e.message,"error"); }
+  };
+
+  const counts = { pending:deliveries.filter(d=>d.deliveryStatus==="pending").length, sent:deliveries.filter(d=>d.deliveryStatus==="sent").length, delivered:deliveries.filter(d=>d.deliveryStatus==="delivered").length };
+  const filtered = filter==="all" ? deliveries : deliveries.filter(d=>d.deliveryStatus===filter);
+  const statusColor = s => ({pending:"#f59e0b",sent:"#60a5fa",delivered:"#22c55e"}[s]||"#94a3b8");
+  const fmtDate = ts => { try { const d=ts?.toDate?ts.toDate():new Date(ts); return d.toLocaleDateString(); } catch{return "-";} };
+
+  return (
+    <div>
+      {toast && <Toast msg={toast.msg} type={toast.type}/>}
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {[["pending","⏳","Pending",counts.pending,"#f59e0b"],["sent","📤","Sent",counts.sent,"#60a5fa"],["delivered","✅","Delivered",counts.delivered,"#22c55e"],["all","📋","All",deliveries.length,"#94a3b8"]].map(([f,ic,lb,val,col])=>(
+            <button key={f} onClick={()=>setFilter(f)} style={{padding:"8px 16px",borderRadius:12,border:`1px solid ${filter===f?col:col+"33"}`,background:filter===f?col+"18":"transparent",color:filter===f?col:"rgba(255,255,255,.5)",fontWeight:800,fontSize:12,cursor:"pointer"}}>
+              {ic} {lb} ({val})
+            </button>
+          ))}
+        </div>
+        <Btn onClick={()=>setShowForm(v=>!v)}>{showForm?"✕ Funga":"➕ Delivery Mpya"}</Btn>
+      </div>
+
+      {/* Create form */}
+      {showForm && (
+        <div style={{borderRadius:20,border:"1px solid rgba(255,255,255,.08)",background:"#141823",padding:20,marginBottom:20}}>
+          <h3 style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:18,margin:"0 0 16px"}}>➕ New Delivery Task</h3>
+          <div style={{display:"grid",gap:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <Field label="Customer Name *"><Input value={newDel.customer} onChange={e=>setNewDel(d=>({...d,customer:e.target.value}))} placeholder="Jina la customer"/></Field>
+              <Field label="Product/Course"><Input value={newDel.product} onChange={e=>setNewDel(d=>({...d,product:e.target.value}))} placeholder="Kitu kilichonunuliwa"/></Field>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+              <Field label="Phone"><Input value={newDel.phone} onChange={e=>setNewDel(d=>({...d,phone:e.target.value}))} placeholder="+255..."/></Field>
+              <Field label="Email"><Input value={newDel.email} onChange={e=>setNewDel(d=>({...d,email:e.target.value}))} placeholder="email@..."/></Field>
+              <Field label="Access Type">
+                <select value={newDel.accessType} onChange={e=>setNewDel(d=>({...d,accessType:e.target.value}))} style={{height:46,borderRadius:12,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",color:"#fff",padding:"0 14px",width:"100%"}}>
+                  <option value="digital_link">🔗 Digital Link</option>
+                  <option value="whatsapp_group">💬 WhatsApp Group</option>
+                  <option value="email_course">📧 Email Course</option>
+                  <option value="zoom_meeting">📹 Zoom Meeting</option>
+                  <option value="physical">📦 Physical</option>
+                </select>
+              </Field>
+            </div>
+            <Field label="Access Details (link, group, info)">
+              <Textarea value={newDel.accessDetails} onChange={e=>setNewDel(d=>({...d,accessDetails:e.target.value}))} placeholder="Link ya course, WhatsApp group link, au maelezo..." style={{minHeight:70}}/>
+            </Field>
+            <Btn onClick={createDelivery}>🚀 Unda Delivery</Btn>
+          </div>
+        </div>
+      )}
+
+      {filtered.length===0 && <div style={{textAlign:"center",padding:"40px 20px",color:"rgba(255,255,255,.25)",fontSize:14}}>Hakuna deliveries za "{filter}". Ongeza delivery mpya ukitumia kitufe hapo juu.</div>}
+
+      <div style={{display:"grid",gap:10}}>
+        {filtered.map(d => {
+          const st = d.deliveryStatus || "pending";
+          return (
+            <div key={d.id} style={{borderRadius:16,border:`1px solid ${statusColor(st)}33`,background:"#141823",padding:"16px 18px"}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+                    <span style={{fontWeight:800,fontSize:15}}>{d.customer||d.customerName||"Customer"}</span>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99,background:statusColor(st)+"22",color:statusColor(st)}}>{st}</span>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,.3)"}}>{d.accessType||"digital"}</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:6,fontSize:13,color:"rgba(255,255,255,.5)",marginBottom:6}}>
+                    <span>📦 {d.product||d.productName||"—"}</span>
+                    {d.phone && <span>📱 {d.phone}</span>}
+                    {d.email && <span>📧 {d.email}</span>}
+                    <span>📅 {fmtDate(d.createdAt)}</span>
+                    {d.sentAt && <span>📤 Sent: {fmtDate(d.sentAt)}</span>}
+                  </div>
+                  {d.accessDetails && <div style={{fontSize:12,color:"rgba(255,255,255,.4)",padding:"6px 10px",borderRadius:8,background:"rgba(255,255,255,.03)",fontFamily:"monospace",wordBreak:"break-all"}}>{d.accessDetails}</div>}
+                  {d.adminNote && <div style={{fontSize:12,color:"rgba(255,255,255,.35)",marginTop:6}}>Note: {d.adminNote}</div>}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
+                  {st==="pending" && <Btn onClick={()=>updateDel(d.id,{deliveryStatus:"sent",sentAt:serverTimestamp()})} color="rgba(96,165,250,.15)" textColor="#60a5fa" style={{padding:"6px 12px",fontSize:12}}>📤 Mark Sent</Btn>}
+                  {st==="sent" && <Btn onClick={()=>updateDel(d.id,{deliveryStatus:"delivered",deliveredAt:serverTimestamp()})} color="rgba(34,197,94,.15)" textColor="#22c55e" style={{padding:"6px 12px",fontSize:12}}>✅ Delivered</Btn>}
+                  <Btn onClick={()=>updateDel(d.id,{adminNote:notes[d.id]||""})} color="rgba(245,166,35,.1)" textColor={G} style={{padding:"6px 12px",fontSize:12}}>💾 Note</Btn>
+                </div>
+              </div>
+              <div style={{marginTop:10}}>
+                <input value={notes[d.id]||d.adminNote||""} onChange={e=>setNotes(n=>({...n,[d.id]:e.target.value}))}
+                  placeholder="Admin delivery note..."
+                  style={{width:"100%",height:36,borderRadius:9,border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.04)",color:"#fff",padding:"0 12px",outline:"none",fontSize:13}}/>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// MESSAGE TEMPLATE MANAGER — FULL
+// ══════════════════════════════════════════════════════
+function MessageTemplateManager() {
+  const DEFAULT_TEMPLATES = [
+    { key:"payment_instructions", label:"💳 Payment Instructions", icon:"💳", defaultContent:"Asante kwa kuchagua {product}!\n\nTafadhali lipa kiasi cha TZS {amount} kwa njia zifuatazo:\n\n📱 M-Pesa: {mpesa_number}\n📱 Tigo Pesa: {tigopesa_number}\n\nBaada ya kulipa, tuma screenshot ya malipo yako kwenye WhatsApp: {whatsapp_number}\n\nRef: {order_id}" },
+    { key:"payment_approved", label:"✅ Payment Approved", icon:"✅", defaultContent:"🎉 Hongera {customer_name}!\n\nMalipo yako ya TZS {amount} yamekubaliwa.\n\nOrder yako: {product}\nRef: {order_id}\n\nUtapata maelekezo ya upatikanaji hivi karibuni.\n\nAsante kwa kuamini STEA! 🇹🇿" },
+    { key:"payment_rejected", label:"❌ Payment Rejected", icon:"❌", defaultContent:"Habari {customer_name},\n\nSamahani, malipo yako ya TZS {amount} hayakukubaliwa.\n\nSababu: {rejection_reason}\n\nTafadhali wasiliana nasi WhatsApp {whatsapp_number} tupate suluhisho.\n\nSTEA Team" },
+    { key:"subscription_reminder_3days", label:"⏰ Sub Reminder 3 Days", icon:"⏰", defaultContent:"Habari {customer_name}!\n\nSubscription yako ya {product} itaisha siku 3 zijazo ({end_date}).\n\nKwa kuendelea kupata huduma, fanya malipo mapya: {renewal_link}\n\nAsante! — STEA Team" },
+    { key:"subscription_reminder_1day", label:"🚨 Sub Reminder 1 Day", icon:"🚨", defaultContent:"⚠️ MUHIMU {customer_name}!\n\nSubscription yako ya {product} itaisha KESHO ({end_date})!\n\nFanya renewal sasa ili usipoteze upatikanaji:\n{renewal_link}\n\nSTEA Team" },
+    { key:"subscription_expired", label:"🔴 Subscription Expired", icon:"🔴", defaultContent:"Habari {customer_name},\n\nSubscription yako ya {product} imekwisha tarehe {end_date}.\n\nKwa kuendelea, fanya malipo mapya:\n{renewal_link}\n\nTunatumai kukuona tena! — STEA" },
+    { key:"delivery_sent", label:"📤 Delivery Sent", icon:"📤", defaultContent:"🎉 {customer_name}, umepata!\n\n{product} yako ipo tayari!\n\n🔗 Upatikanaji wako:\n{access_details}\n\nKama una tatizo lolote, wasiliana: {support_whatsapp}\n\nFuraha ya kujifunza! — STEA 🚀" },
+    { key:"sponsored_ads_confirmation", label:"📢 Ads Confirmation", icon:"📢", defaultContent:"Habari {client_name}!\n\nMatangazo yako kwenye STEA yamekubaliwa!\n\n📋 Maelezo ya Campaign:\nJina: {ad_title}\nMuda: {start_date} — {end_date}\nAina: {ad_type}\n\nMatangazo yataanza kuonekana kuanzia {start_date}.\n\nSTEA Marketing Team" },
+  ];
+
+  const [templates, setTemplates] = useState({});
+  const [editing, setEditing] = useState(null);
+  const [editContent, setEditContent] = useState("");
+  const [toast, setToast] = useState(null);
+  const [copied, setCopied] = useState(null);
+  const db = getFirebaseDb();
+  const toast_ = (msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
+
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(collection(db,"message_templates"), snap => {
+      const data = {};
+      snap.docs.forEach(d => { data[d.id] = d.data(); });
+      setTemplates(data);
+    }, err => console.error("templates:", err));
+    return () => unsub();
+  }, [db]);
+
+  const save = async (key, content) => {
+    try {
+      await setDoc(doc(db,"message_templates",key), { key, content, updatedAt:serverTimestamp() }, {merge:true});
+      toast_("Template imehifadhiwa!");
+      setEditing(null);
+    } catch(e) { toast_(e.message,"error"); }
+  };
+
+  const reset = async (key, defaultContent) => {
+    try {
+      await setDoc(doc(db,"message_templates",key), { key, content:defaultContent, updatedAt:serverTimestamp() }, {merge:true});
+      toast_("Template imeresetwa!");
+      setEditing(null);
+    } catch(e) { toast_(e.message,"error"); }
+  };
+
+  const copy = (text, key) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(()=>setCopied(null),2000);
   };
 
   return (
     <div>
-      <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Payment Review</h3>
-      <div style={{ display: "grid", gap: 12 }}>
-        {payments.map(p => (
-          <div key={p.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>{p.customerName} - {p.amountPaid}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Status: {p.reviewStatus} | Ref: {p.paymentReference}</div>
-            </div>
-            {p.reviewStatus === "pending" && (
-              <>
-                <Btn onClick={() => updateStatus(p.id, "approved")} color={G} textColor="#111" style={{ padding: "8px 14px" }}>Approve</Btn>
-                <Btn onClick={() => updateStatus(p.id, "rejected")} color="rgba(239,68,68,.12)" textColor="#fca5a5" style={{ padding: "8px 14px" }}>Reject</Btn>
-              </>
-            )}
-          </div>
-        ))}
+      {toast && <Toast msg={toast.msg} type={toast.type}/>}
+      <div style={{padding:"12px 16px",borderRadius:14,background:"rgba(245,166,35,.06)",border:"1px solid rgba(245,166,35,.15)",marginBottom:24,fontSize:13,color:"rgba(255,255,255,.6)",lineHeight:1.7}}>
+        💡 <strong style={{color:G}}>Variables:</strong> Tumia <code style={{background:"rgba(255,255,255,.08)",padding:"1px 6px",borderRadius:4,fontFamily:"monospace"}}>{"{customer_name}"}</code>, <code style={{background:"rgba(255,255,255,.08)",padding:"1px 6px",borderRadius:4,fontFamily:"monospace"}}>{"{product}"}</code>, <code style={{background:"rgba(255,255,255,.08)",padding:"1px 6px",borderRadius:4,fontFamily:"monospace"}}>{"{amount}"}</code>, <code style={{background:"rgba(255,255,255,.08)",padding:"1px 6px",borderRadius:4,fontFamily:"monospace"}}>{"{order_id}"}</code>, <code style={{background:"rgba(255,255,255,.08)",padding:"1px 6px",borderRadius:4,fontFamily:"monospace"}}>{"{end_date}"}</code> n.k.
       </div>
-    </div>
-  );
-}
 
-// ══════════════════════════════════════════════════════
-// SUBSCRIPTION MANAGER
-// ══════════════════════════════════════════════════════
-function SubscriptionManager() {
-  const [subs, setSubs] = useState([]);
-  const db = getFirebaseDb();
-
-  useEffect(() => {
-    if (!db) return;
-    const unsub = onSnapshot(collection(db, "subscriptions"), (snap) => setSubs(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => console.error("Error loading subscriptions:", err));
-    return () => unsub();
-  }, [db]);
-
-  return (
-    <div>
-      <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Subscriptions</h3>
-      <div style={{ display: "grid", gap: 12 }}>
-        {subs.map(s => (
-          <div key={s.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>{s.customerName} - {s.status}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Ends: {s.endDate?.toDate().toLocaleDateString()}</div>
+      <div style={{display:"grid",gap:14}}>
+        {DEFAULT_TEMPLATES.map(tmpl => {
+          const saved = templates[tmpl.key];
+          const content = saved?.content || tmpl.defaultContent;
+          const isEditing = editing === tmpl.key;
+          return (
+            <div key={tmpl.key} style={{borderRadius:16,border:"1px solid rgba(255,255,255,.07)",background:"#141823",overflow:"hidden"}}>
+              <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:12,borderBottom:isEditing?"1px solid rgba(255,255,255,.06)":"none"}}>
+                <span style={{fontSize:22}}>{tmpl.icon}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,fontSize:14}}>{tmpl.label}</div>
+                  {saved?.updatedAt && <div style={{fontSize:11,color:"rgba(255,255,255,.3)"}}>Imebadilishwa: {saved.updatedAt?.toDate?.()?.toLocaleDateString()||"—"}</div>}
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <Btn onClick={()=>copy(content,tmpl.key)} color={copied===tmpl.key?"rgba(34,197,94,.15)":"rgba(255,255,255,.06)"} textColor={copied===tmpl.key?"#22c55e":"rgba(255,255,255,.6)"} style={{padding:"6px 12px",fontSize:12}}>
+                    {copied===tmpl.key?"✅ Copied":"📋 Copy"}
+                  </Btn>
+                  <Btn onClick={()=>{if(isEditing){setEditing(null);}else{setEditing(tmpl.key);setEditContent(content);}}} color={isEditing?"rgba(239,68,68,.1)":"rgba(245,166,35,.1)"} textColor={isEditing?"#fca5a5":G} style={{padding:"6px 12px",fontSize:12}}>
+                    {isEditing?"✕ Funga":"✏️ Edit"}
+                  </Btn>
+                </div>
+              </div>
+              {!isEditing && (
+                <div style={{padding:"12px 18px",background:"rgba(255,255,255,.02)"}}>
+                  <pre style={{fontSize:12,color:"rgba(255,255,255,.5)",lineHeight:1.7,whiteSpace:"pre-wrap",margin:0,fontFamily:"inherit"}}>{content}</pre>
+                </div>
+              )}
+              {isEditing && (
+                <div style={{padding:"16px 18px"}}>
+                  <Textarea value={editContent} onChange={e=>setEditContent(e.target.value)} style={{minHeight:180,fontFamily:"monospace",fontSize:13}}/>
+                  <div style={{display:"flex",gap:8,marginTop:12}}>
+                    <Btn onClick={()=>save(tmpl.key,editContent)} style={{flex:1}}>💾 Hifadhi Template</Btn>
+                    <Btn onClick={()=>reset(tmpl.key,tmpl.defaultContent)} color="rgba(255,255,255,.06)" textColor="rgba(255,255,255,.5)" style={{padding:"10px 14px",fontSize:12}}>↩ Reset Default</Btn>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════
-// DELIVERY MANAGER
-// ══════════════════════════════════════════════════════
-function DeliveryManager() {
-  const [deliveries, setDeliveries] = useState([]);
-  const db = getFirebaseDb();
-
-  useEffect(() => {
-    if (!db) return;
-    const unsub = onSnapshot(collection(db, "deliveries"), (snap) => setDeliveries(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => console.error("Error loading deliveries:", err));
-    return () => unsub();
-  }, [db]);
-
-  return (
-    <div>
-      <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Delivery Manager</h3>
-      <div style={{ display: "grid", gap: 12 }}>
-        {deliveries.map(d => (
-          <div key={d.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>Order: {d.orderId}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>Status: {d.deliveryStatus}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════
-// MESSAGE TEMPLATE MANAGER
-// ══════════════════════════════════════════════════════
-function MessageTemplateManager() {
-  const [templates, setTemplates] = useState([]);
-  const db = getFirebaseDb();
-
-  useEffect(() => {
-    if (!db) return;
-    const unsub = onSnapshot(collection(db, "message_templates"), (snap) => setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (err) => console.error("Error loading templates:", err));
-    return () => unsub();
-  }, [db]);
-
-  return (
-    <div>
-      <h3 style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, margin:"0 0 20px" }}>Message Templates</h3>
-      <div style={{ display: "grid", gap: 12 }}>
-        {templates.map(t => (
-          <div key={t.id} style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,.07)", background: "#1a1d2e", padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>{t.name}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)" }}>{t.content.substring(0, 50)}...</div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
