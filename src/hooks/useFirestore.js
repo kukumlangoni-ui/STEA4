@@ -1,81 +1,127 @@
-import { useState, useEffect } from "react";
-import { getFirebaseDb, collection, onSnapshot, query, limit, doc, updateDoc, increment, handleFirestoreError, OperationType } from "../firebase.js";
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-export function useCollection(colName, orderField = "createdAt", limitCount = 100) {
-  const [docs, setDocs] = useState([]);
-  const [loading, setLoading] = useState(true);
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
-  useEffect(() => {
-    const db = getFirebaseDb();
-    if (!db) return;
+    // NO email_verified — was blocking admin saves
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == "swahilitecheliteacademy@gmail.com" ||
+        request.auth.token.email == "swahilitechacademy@gmail.com" ||
+        request.auth.token.email == "isayamasika100@gmail.com" ||
+        request.auth.token.email == "kukumlangoni@gmail.com" ||
+        request.auth.token.email == "isayahans@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
+    }
 
-    // Fast timeout — 4s max
-    const timer = setTimeout(() => setLoading(false), 4000);
+    function isOnlyViewsUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']);
+    }
 
-    // NO orderBy — avoids index requirement, fetch all then sort in memory
-    const q = query(collection(db, colName), limit(1000));
-    const unsub = onSnapshot(q, (snap) => {
-      clearTimeout(timer);
-      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    match /users/{userId} {
+      allow read: if isAuthenticated() || isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if request.auth.uid == userId || isAdmin();
+      allow delete: if isAdmin();
+    }
 
-      // Sort in memory — newest first, pending serverTimestamp at top
-      fetched.sort((a, b) => {
-        const getTime = (doc) => {
-          const val = doc.updatedAt || doc[orderField];
-          if (!val) return Date.now() + 9999999; // pending = top
-          if (val?.toDate) return val.toDate().getTime();
-          if (typeof val === "number") return val;
-          return new Date(val).getTime() || 0;
-        };
-        return getTime(b) - getTime(a);
-      });
+    // Content collections — NO isRecent, NO strict validation (admin trusted)
+    match /tips/{id} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow update: if isOnlyViewsUpdate();
+      allow delete: if isAdmin();
+    }
+    match /updates/{id} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow update: if isOnlyViewsUpdate();
+      allow delete: if isAdmin();
+    }
+    match /deals/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /courses/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /products/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /websites/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /prompts/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /promptLab/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /faqs/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /site_settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /fcm_tokens/{id} {
+      allow read: if isAdmin();
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+    match /notification_queue/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /orders/{id} {
+      allow read: if isAdmin() || isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    match /payments/{id} {
+      allow read: if isAdmin() || isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    match /subscriptions/{id} {
+      allow read: if isAdmin() || isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+    match /deliveries/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /message_templates/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
-      setDocs(fetched);
-      setLoading(false);
-    }, (err) => {
-      clearTimeout(timer);
-      console.error(`[useCollection] ${colName}:`, err.message);
-      if (err.message.includes("insufficient permissions")) {
-        handleFirestoreError(err, OperationType.LIST, colName);
+    match /sponsored_ads/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /support_messages/{id} {
+      allow read, write: if true;
+    }
+    match /chats/{userId} {
+      allow read, write: if isAuthenticated();
+      match /messages/{msgId} {
+        allow read, write: if isAuthenticated();
       }
-      setLoading(false);
-    });
-
-    return () => { clearTimeout(timer); unsub(); };
-  }, [colName, orderField]);
-
-  return { docs, loading };
-}
-
-export async function incrementViews(colName, docId) {
-  const db = getFirebaseDb();
-  if (!db) return;
-  try {
-    await updateDoc(doc(db, colName, docId), { views: increment(1) });
-  } catch (e) {
-    console.warn("incrementViews error:", e.message);
+    }
+    match /{path=**} {
+      allow read, write: if false;
+    }
   }
-}
-
-export function timeAgo(timestamp) {
-  if (!timestamp) return "";
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  const seconds = Math.floor((new Date() - date) / 1000);
-  if (seconds < 60) return "just now";
-  const intervals = [
-    [31536000, "year"], [2592000, "month"], [86400, "day"],
-    [3600, "hour"], [60, "minute"],
-  ];
-  for (const [div, label] of intervals) {
-    const n = Math.floor(seconds / div);
-    if (n >= 1) return `${n} ${label}${n > 1 ? "s" : ""} ago`;
-  }
-  return "just now";
-}
-
-export function fmtViews(v) {
-  if (!v) return "0";
-  if (v >= 1000000) return (v / 1000000).toFixed(1) + "M";
-  if (v >= 1000) return (v / 1000).toFixed(1) + "K";
-  return v.toString();
 }
