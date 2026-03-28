@@ -11,8 +11,10 @@ import {
   increment,
   getDoc,
   serverTimestamp,
+  getFirebaseDb,
+  handleFirestoreError,
+  OperationType,
 } from "../firebase.js";
-import { getFirebaseDb, handleFirestoreError, OperationType } from "../firebase.js";
 
 /* =========================================================
    Helpers
@@ -35,16 +37,11 @@ export function timeAgo(input) {
 
   let date;
 
-  // Firestore Timestamp
   if (typeof input?.toDate === "function") {
     date = input.toDate();
-  }
-  // seconds object
-  else if (input?.seconds) {
+  } else if (input?.seconds) {
     date = new Date(input.seconds * 1000);
-  }
-  // JS Date or string
-  else {
+  } else {
     date = new Date(input);
   }
 
@@ -71,23 +68,26 @@ export function timeAgo(input) {
 }
 
 /* =========================================================
-   useCollection Hook
-   Usage examples:
+   useCollection
+   Supports:
    useCollection("tips")
-   useCollection("updates", { orderField: "createdAt", direction: "desc", max: 6 })
-   useCollection("deals", { filters: [{ field: "active", op: "==", value: true }] })
+   useCollection("tips", "createdAt")
+   useCollection("tips", { orderField: "createdAt", max: 6 })
 ========================================================= */
 
-export function useCollection(
-  collectionName,
-  options = {}
-) {
+export function useCollection(collectionName, optionsOrOrderField = {}) {
+  const options =
+    typeof optionsOrOrderField === "string"
+      ? { orderField: optionsOrOrderField }
+      : optionsOrOrderField || {};
+
   const {
     orderField = "createdAt",
     direction = "desc",
     max = null,
     filters = [],
     enabled = true,
+    minLoadingMs = 700,
   } = options;
 
   const db = getFirebaseDb();
@@ -95,6 +95,7 @@ export function useCollection(
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(Boolean(enabled));
   const [error, setError] = useState(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const queryConfig = useMemo(() => {
     return {
@@ -104,18 +105,23 @@ export function useCollection(
       max,
       filters,
       enabled,
+      minLoadingMs,
     };
-  }, [collectionName, orderField, direction, max, filters, enabled]);
+  }, [collectionName, orderField, direction, max, filters, enabled, minLoadingMs]);
 
   useEffect(() => {
     if (!enabled || !collectionName) {
       setLoading(false);
+      setHasLoaded(true);
       setData([]);
       return;
     }
 
     setLoading(true);
+    setHasLoaded(false);
     setError(null);
+
+    const startedAt = Date.now();
 
     try {
       const constraints = [];
@@ -146,30 +152,129 @@ export function useCollection(
             ...d.data(),
           }));
 
-          setData(rows);
-          setLoading(false);
+          const elapsed = Date.now() - startedAt;
+          const remaining = Math.max(0, minLoadingMs - elapsed);
+
+          setTimeout(() => {
+            setData(rows);
+            setLoading(false);
+            setHasLoaded(true);
+          }, remaining);
         },
         (err) => {
           console.error(`[useCollection:${collectionName}]`, err);
-          setError(err);
-          setLoading(false);
+
+          const elapsed = Date.now() - startedAt;
+          const remaining = Math.max(0, minLoadingMs - elapsed);
+
+          setTimeout(() => {
+            setError(err);
+            setLoading(false);
+            setHasLoaded(true);
+          }, remaining);
         }
       );
 
       return () => unsub();
     } catch (err) {
       console.error(`[useCollection:${collectionName}]`, err);
+
+      const elapsed = Date.now() - startedAt;
+      const remaining = Math.max(0, minLoadingMs - elapsed);
+
+      setTimeout(() => {
+        setError(err);
+        setLoading(false);
+        setHasLoaded(true);
+      }, remaining);
+    }
+  }, [db, queryConfig, enabled, collectionName, orderField, direction, max, filters, minLoadingMs]);
+
+  return {
+    data,
+    docs: data,
+    loading,
+    hasLoaded,
+    error,
+  };
+}
+
+/* =========================================================
+   useDocument
+========================================================= */
+
+export function useDocument(collectionName, docId, enabled = true) {
+  const db = getFirebaseDb();
+
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(Boolean(enabled));
+  const [error, setError] = useState(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || !collectionName || !docId) {
+      setLoading(false);
+      setHasLoaded(true);
+      setData(null);
+      return;
+    }
+
+    setLoading(true);
+    setHasLoaded(false);
+    setError(null);
+
+    const startedAt = Date.now();
+
+    try {
+      const ref = doc(db, collectionName, docId);
+
+      const unsub = onSnapshot(
+        ref,
+        (snapshot) => {
+          const elapsed = Date.now() - startedAt;
+          const remaining = Math.max(0, 400 - elapsed);
+
+          setTimeout(() => {
+            if (!snapshot.exists()) {
+              setData(null);
+            } else {
+              setData({
+                id: snapshot.id,
+                ...snapshot.data(),
+              });
+            }
+            setLoading(false);
+            setHasLoaded(true);
+          }, remaining);
+        },
+        (err) => {
+          console.error(`[useDocument:${collectionName}/${docId}]`, err);
+
+          const elapsed = Date.now() - startedAt;
+          const remaining = Math.max(0, 400 - elapsed);
+
+          setTimeout(() => {
+            setError(err);
+            setLoading(false);
+            setHasLoaded(true);
+          }, remaining);
+        }
+      );
+
+      return () => unsub();
+    } catch (err) {
+      console.error(`[useDocument:${collectionName}/${docId}]`, err);
       setError(err);
       setLoading(false);
+      setHasLoaded(true);
     }
-  }, [db, queryConfig, enabled, collectionName, orderField, direction, max, filters]);
+  }, [db, collectionName, docId, enabled]);
 
-  return { data, loading, error };
+  return { data, loading, hasLoaded, error };
 }
 
 /* =========================================================
    incrementViews
-   Safe view increment with 1-per-device-per-day local cache
 ========================================================= */
 
 export async function incrementViews(collectionName, docId) {
@@ -180,15 +285,13 @@ export async function incrementViews(collectionName, docId) {
   const localKey = `stea_viewed_${collectionName}_${docId}_${today}`;
 
   try {
-    // stop duplicate increments on same device same day
     if (typeof window !== "undefined" && localStorage.getItem(localKey)) {
       return false;
     }
 
     const ref = doc(db, collectionName, docId);
-
-    // optional existence check
     const snap = await getDoc(ref);
+
     if (!snap.exists()) {
       console.warn(`Document not found: ${collectionName}/${docId}`);
       return false;
@@ -209,64 +312,9 @@ export async function incrementViews(collectionName, docId) {
     try {
       handleFirestoreError(error, OperationType.UPDATE, `${collectionName}/${docId}`);
     } catch {
-      // prevent UI crash if error formatter throws
+      // no-op
     }
     return false;
   }
-}
-
-/* =========================================================
-   Optional helper: one document live
-========================================================= */
-
-export function useDocument(collectionName, docId, enabled = true) {
-  const db = getFirebaseDb();
-
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(Boolean(enabled));
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!enabled || !collectionName || !docId) {
-      setLoading(false);
-      setData(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const ref = doc(db, collectionName, docId);
-
-      const unsub = onSnapshot(
-        ref,
-        (snapshot) => {
-          if (!snapshot.exists()) {
-            setData(null);
-          } else {
-            setData({
-              id: snapshot.id,
-              ...snapshot.data(),
-            });
-          }
-          setLoading(false);
-        },
-        (err) => {
-          console.error(`[useDocument:${collectionName}/${docId}]`, err);
-          setError(err);
-          setLoading(false);
-        }
-      );
-
-      return () => unsub();
-    } catch (err) {
-      console.error(`[useDocument:${collectionName}/${docId}]`, err);
-      setError(err);
-      setLoading(false);
-    }
-  }, [db, collectionName, docId, enabled]);
-
-  return { data, loading, error };
 }
 
