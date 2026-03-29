@@ -2199,10 +2199,10 @@ export default function AdminPanel({ user, onBack }) {
   ];
 
   return (
-    <div style={{ minHeight:"100vh", display:"grid", gridTemplateColumns:"240px 1fr", background:"#0a0b0f" }}>
+    <div style={{ minHeight:"100vh", display:"grid", gridTemplateColumns:"clamp(200px, 20vw, 240px) 1fr", background:"#0a0b0f", minWidth:0 }}>
 
       {/* Sidebar */}
-      <div style={{ borderRight:"1px solid rgba(255,255,255,.06)", padding:"24px 16px", position:"sticky", top:0, height:"100vh", overflowY:"auto" }}>
+      <div style={{ borderRight:"1px solid rgba(255,255,255,.06)", padding:"20px 12px", position:"sticky", top:0, height:"100vh", overflowY:"auto", scrollbarWidth:"none", flexShrink:0 }}>
         <div style={{ marginBottom:28 }}>
           <div style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, fontWeight:800, marginBottom:4 }}>⚡ Admin Panel</div>
           <div style={{ fontSize:12, color:"rgba(255,255,255,.35)" }}>SwahiliTech Elite Academy</div>
