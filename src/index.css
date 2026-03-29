@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import "react-easy-crop/react-easy-crop.css";
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+body {
+  background-color: #040509;
+  color: #ffffff;
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(245,166,35,0.25); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(245,166,35,0.45); }
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.stea-loader-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #050816;
+  text-align: center;
+}
+
+.stea-loader-logo {
+  width: 96px; height: 96px;
+  object-fit: contain;
+  animation: steaPulse 1.5s infinite ease-in-out;
+  filter: drop-shadow(0 0 14px rgba(255,200,0,0.28));
+}
+
+.stea-loader-text {
+  margin-top: 12px;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  color: rgba(255,255,255,0.72);
+  font-weight: 700;
+}
+
+.stea-loader-line {
+  width: 110px; height: 3px;
+  margin-top: 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255,184,0,0.15), #f4c430, rgba(255,184,0,0.15));
+  box-shadow: 0 0 12px rgba(244,196,48,0.22);
+  animation: steaLineGlow 1.5s infinite ease-in-out;
+}
+
+@keyframes steaPulse {
+  0%, 100% { transform: scale(1); opacity: 0.78; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@keyframes steaLineGlow {
+  0%, 100% { opacity: 0.55; transform: scaleX(0.96); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+.stea-navbar-logo { width: 36px; height: 36px; object-fit: contain; display: block; }
+.stea-footer-logo { width: auto; height: 48px; object-fit: contain; display: block; }
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+}
+
+.category-tabs-scroll {
+  display: flex; gap: 8px;
+  overflow-x: auto; padding-bottom: 8px;
+  scrollbar-width: none; -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+.category-tabs-scroll::-webkit-scrollbar { display: none; }
+
+a { text-decoration: none; color: inherit; }
+input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.25); }
