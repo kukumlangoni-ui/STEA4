@@ -231,6 +231,7 @@ function TechContentManager({ collectionName }) {
         views: form.views || 0, 
         createdAt: form.createdAt || serverTimestamp() 
       };
+      console.log("Saving data to Firestore for collection:", collectionName, "Data:", data);
 
       // Ensure no undefined or null values are sent to Firestore
       Object.keys(data).forEach(key => {

@@ -46,7 +46,11 @@ export function useCollection(colName, orderField = "createdAt", limitCount = 50
       }
 
       console.log(`Fetched ${snap.size} docs from ${colName}`);
-      const fetchedDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const fetchedDocs = snap.docs.map(d => {
+        const data = d.data();
+        console.log(`Doc ${d.id}:`, data);
+        return { id: d.id, ...data };
+      });
       
       // We still sort in memory to handle the case where a local write has a null serverTimestamp
       // and we want it to immediately appear at the top.

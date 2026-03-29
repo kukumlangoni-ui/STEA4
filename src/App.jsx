@@ -61,6 +61,7 @@ import {
 } from "./hooks/useFirestore.js";
 import AdminPanel from "./admin/AdminPanel.jsx";
 import { CategoryTabs } from "./components/CategoryTabs.jsx";
+import ProfileImage from "./components/ProfileImage";
 
 // ── Error Boundary ───────────────────────────────────────
 class ErrorBoundary extends Component {
@@ -1875,18 +1876,12 @@ function UserChip({ user, onLogout, onAdmin, onProfile }) {
         onClick={() => setOpen((v) => !v)}
         className="w-[42px] h-[42px] rounded-xl border-2 border-[#F5A623] overflow-hidden bg-transparent p-0 cursor-pointer flex items-center justify-center flex-shrink-0 transition-transform active:scale-95"
       >
-        {user.photoURL ? (
-          <img 
-            src={user.photoURL} 
-            alt={user.displayName} 
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F5A623] to-[#FFD17C] text-[#111] font-black text-lg">
-            {ini}
-          </div>
-        )}
+        <ProfileImage
+          src={user.photoURL}
+          alt={user.displayName}
+          userId={user.uid}
+          className="w-full h-full"
+        />
       </button>
 
       <AnimatePresence>
@@ -1901,13 +1896,12 @@ function UserChip({ user, onLogout, onAdmin, onProfile }) {
             <div className="p-3 mb-2 bg-white/5 rounded-xl border border-white/5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
-                  {user.photoURL ? (
-                    <img src={user.photoURL} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-[#F5A623]/20 text-[#F5A623] font-bold">
-                      {ini}
-                    </div>
-                  )}
+                  <ProfileImage
+                    src={user.photoURL}
+                    alt={user.displayName}
+                    userId={user.uid}
+                    className="w-full h-full"
+                  />
                 </div>
                 <div className="min-w-0">
                   <div className="font-black text-sm text-white truncate">
@@ -1992,7 +1986,7 @@ function ProfileModal({ user, onClose, onUpdate }) {
   return (
     <Portal>
       <div
-        className="fixed inset-0 z-[2000] flex items-center justify-center p-4 sm:p-6"
+        className="fixed inset-0 z-[5000] flex items-center justify-center p-4 sm:p-6"
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
         <motion.div
@@ -2003,23 +1997,23 @@ function ProfileModal({ user, onClose, onUpdate }) {
         />
         
         <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: 40 }}
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 40 }}
-          className="relative w-full max-w-[440px] bg-[#0e101a] rounded-[40px] border border-white/10 shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col"
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="relative w-full max-w-[440px] bg-[#0e101a] rounded-[32px] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-7 border-b border-white/5">
-            <h2 className="text-2xl font-black tracking-tighter text-white">Profile</h2>
+          <div className="flex items-center justify-between p-6 border-b border-white/5">
+            <h2 className="text-xl font-black tracking-tighter text-white">Profile</h2>
             <button
               onClick={onClose}
-              className="w-11 h-11 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-all active:scale-90"
+              className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-all active:scale-90"
             >
-              <X size={22} />
+              <X size={20} />
             </button>
           </div>
 
-          <div className="p-8 sm:p-10 space-y-10 overflow-y-auto max-h-[70vh] scrollbar-hide">
+          <div className="p-6 sm:p-8 space-y-8 overflow-y-auto scrollbar-hide">
             {/* Avatar Section */}
             <div className="flex flex-col items-center">
               <ProfilePictureUpload
@@ -2030,9 +2024,9 @@ function ProfileModal({ user, onClose, onUpdate }) {
             </div>
 
             {/* Form Section */}
-            <div className="space-y-8">
-              <div className="space-y-3">
-                <label className="text-[11px] font-black uppercase tracking-[0.25em] text-[#F5A623] ml-1">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#F5A623] ml-1">
                   Jina Kamili
                 </label>
                 <div className="relative group">
@@ -2040,40 +2034,31 @@ function ProfileModal({ user, onClose, onUpdate }) {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Weka jina lako..."
-                    className="w-full h-16 px-6 bg-white/[0.03] border border-white/10 rounded-2xl text-white font-bold placeholder:text-white/10 outline-none focus:border-[#F5A623]/50 focus:bg-white/[0.06] transition-all duration-300"
+                    className="w-full h-14 px-5 bg-white/[0.03] border border-white/10 rounded-xl text-white font-bold placeholder:text-white/10 outline-none focus:border-[#F5A623]/50 focus:bg-white/[0.06] transition-all duration-300"
                   />
-                  <div className="absolute right-5 top-1/2 -translate-y-1/2 text-white/10 group-focus-within:text-[#F5A623] transition-colors">
-                    <User size={20} />
-                  </div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="text-[11px] font-black uppercase tracking-[0.25em] text-white/30 ml-1">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">
                   Email Address
                 </label>
-                <div className="w-full h-16 px-6 bg-white/[0.01] border border-white/5 rounded-2xl text-white/20 flex items-center font-medium text-sm sm:text-base">
+                <div className="w-full h-14 px-5 bg-white/[0.01] border border-white/5 rounded-xl text-white/40 flex items-center font-bold text-sm">
                   <span className="truncate">{user.email}</span>
                 </div>
               </div>
-
-              <div className="pt-4">
-                <GoldBtn 
-                  onClick={handleSave} 
-                  disabled={saving} 
-                  style={{ width: '100%', height: 64, borderRadius: 24, fontSize: 17, fontWeight: 900 }}
-                >
-                  {saving ? (
-                    <div className="flex items-center justify-center gap-3">
-                      <div className="w-5 h-5 border-3 border-[#111] border-t-transparent rounded-full animate-spin" />
-                      Inahifadhi...
-                    </div>
-                  ) : (
-                    "Hifadhi Mabadiliko"
-                  )}
-                </GoldBtn>
-              </div>
             </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-6 border-t border-white/5">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full h-14 rounded-xl bg-[#F5A623] text-[#111] font-black hover:bg-[#FFD17C] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "Inahifadhi..." : "Hifadhi Mabadiliko"}
+            </button>
           </div>
         </motion.div>
       </div>

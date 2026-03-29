@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { storage, ref, uploadBytes, getDownloadURL, db, doc, updateDoc } from "../firebase.js";
 import { Camera, X, Check, Upload, Trash2 } from "lucide-react";
 import Cropper from "react-easy-crop";
+import ProfileImage from "./ProfileImage";
 
 // ── Portal Component ──────────────────────────────────
 const Portal = ({ children }) => {
@@ -102,11 +103,11 @@ export default function ProfilePictureUpload({ userId, currentPhotoURL, onUpdate
         {/* Profile Image Container */}
         <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-[38%] overflow-hidden border-2 border-white/10 p-1.5 bg-[#0e101a] shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]">
           <div className="w-full h-full rounded-[35%] overflow-hidden bg-white/5">
-            <img
-              src={currentPhotoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`}
+            <ProfileImage
+              src={currentPhotoURL}
               alt="Profile"
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
+              userId={userId}
+              className="w-full h-full"
             />
           </div>
         </div>
