@@ -1,100 +1,238 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+import { initializeApp } from "firebase/app";
+import { getAnalytics, isSupported } from "firebase/analytics";
 import {
-  getAuth, GoogleAuthProvider,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  signInWithPopup, signOut, onAuthStateChanged, sendPasswordResetEmail,
+  getAuth,
+  GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import {
-  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
-  getDocs, getDoc, setDoc, onSnapshot, query, orderBy, limit,
-  serverTimestamp, increment, where,
+  getFirestore,
+  collection,
+  query,
+  orderBy,
+  limit,
+  where,
+  onSnapshot,
+  doc,
+  setDoc,
+  updateDoc,
+  getDoc,
+  addDoc,
+  deleteDoc,
+  increment,
+  serverTimestamp,
 } from "firebase/firestore";
-import { getMessaging, getToken } from "firebase/messaging";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import firebaseConfig from "../firebase-applet-config.json";
+import { getStorage } from "firebase/storage";
 
-const ADMIN_EMAIL = "isayamasika100@gmail.com";
+const firebaseConfig = {
+  apiKey: "AIzaSyDMnbqLZBo-FpI1uL6mWf1pfLpKVKlHF9A",
+  authDomain: "swahilitecheliteacademy.firebaseapp.com",
+  projectId: "swahilitecheliteacademy",
+  storageBucket: "swahilitecheliteacademy.firebasestorage.app",
+  messagingSenderId: "869558429488",
+  appId: "1:869558429488:web:b6d6614c1c40cb75ed4af5",
+  measurementId: "G-9CBGRJPLT4",
+};
 
-// Helper to normalize email input (appends @gmail.com if domain is missing)
-export const normalizeEmail = (email) => {
-  if (!email) return "";
-  const trimmed = email.trim().toLowerCase();
-  if (!trimmed.includes("@")) {
-    return `${trimmed}@gmail.com`;
+let appInstance = null;
+let analyticsInstance = null;
+let authInstance = null;
+let dbInstance = null;
+let storageInstance = null;
+let googleProviderInstance = null;
+
+export const ADMIN_EMAIL = "swahilitecheliteacademy@gmail.com";
+
+export function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+export function isAdminEmail(email) {
+  const normalized = normalizeEmail(email);
+  return [
+    "swahilitecheliteacademy@gmail.com",
+    "isayamasika100@gmail.com",
+    "kukumlangoni@gmail.com",
+    "isayahans100@gmail.com",
+  ].includes(normalized);
+}
+
+export function initFirebase() {
+  if (appInstance) {
+    return {
+      app: appInstance,
+      auth: authInstance,
+      db: dbInstance,
+      storage: storageInstance,
+      analytics: analyticsInstance,
+    };
   }
-  return trimmed;
-};
 
-// ── Init (safe, runs once) ────────────────────────────
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = firebaseConfig.firestoreDatabaseId 
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
-const messaging = getMessaging(app);
-const storage = getStorage(app);
-const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;
+  appInstance = initializeApp(firebaseConfig);
+  authInstance = getAuth(appInstance);
+  dbInstance = getFirestore(appInstance);
+  storageInstance = getStorage(appInstance);
+  googleProviderInstance = new GoogleAuthProvider();
 
-export { auth, db, messaging, storage, analytics, ADMIN_EMAIL, GoogleAuthProvider };
-export {
-  signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  signInWithPopup, signOut, onAuthStateChanged, sendPasswordResetEmail,
-};
-export {
-  collection, doc, addDoc, updateDoc, deleteDoc,
-  getDocs, getDoc, setDoc, onSnapshot, query, orderBy, limit,
-  serverTimestamp, increment, where,
-  getToken, ref, uploadBytes, getDownloadURL,
-};
+  if (typeof window !== "undefined") {
+    isSupported()
+      .then((supported) => {
+        if (supported) {
+          analyticsInstance = getAnalytics(appInstance);
+        }
+      })
+      .catch((error) => {
+        console.warn("Analytics not supported:", error);
+      });
+  }
 
-// For backward compatibility with existing code
-export const initFirebase = () => ({ auth, db });
-export const getFirebaseAuth = () => auth;
-export const getFirebaseDb = () => db;
+  return {
+    app: appInstance,
+    auth: authInstance,
+    db: dbInstance,
+    storage: storageInstance,
+    analytics: analyticsInstance,
+  };
+}
+
+export function getFirebaseApp() {
+  if (!appInstance) initFirebase();
+  return appInstance;
+}
+
+export function getFirebaseAuth() {
+  if (!authInstance) initFirebase();
+  return authInstance;
+}
+
+export function getFirebaseDb() {
+  if (!dbInstance) initFirebase();
+  return dbInstance;
+}
+
+export function getFirebaseStorage() {
+  if (!storageInstance) initFirebase();
+  return storageInstance;
+}
+
+export function getGoogleProvider() {
+  if (!googleProviderInstance) initFirebase();
+  return googleProviderInstance;
+}
+
+export async function requestNotificationPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    return permission;
+  } catch (error) {
+    console.warn("Notification permission request failed:", error);
+    return "denied";
+  }
+}
+
+export async function sendPushNotification({ title, body, icon } = {}) {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return false;
+  }
+
+  if (Notification.permission !== "granted") {
+    return false;
+  }
+
+  try {
+    new Notification(title || "STEA", {
+      body: body || "Una taarifa mpya kutoka STEA",
+      icon: icon || "/stea-icon.jpg",
+    });
+    return true;
+  } catch (error) {
+    console.warn("Local notification failed:", error);
+    return false;
+  }
+}
 
 export const OperationType = {
-  CREATE: 'create',
-  UPDATE: 'update',
-  DELETE: 'delete',
-  LIST: 'list',
-  GET: 'get',
-  WRITE: 'write',
+  CREATE: "create",
+  READ: "read",
+  UPDATE: "update",
+  DELETE: "delete",
 };
 
-function safeStringify(obj) {
-  const cache = new Set();
-  return JSON.stringify(obj, (key, value) => {
-    if (typeof value === 'object' && value !== null) {
-      if (cache.has(value)) {
-        return; // Discard circular reference
-      }
-      cache.add(value);
-    }
-    return value;
-  });
+export function handleFirestoreError(error, operation = "unknown", target = "") {
+  console.error(`[Firestore ${operation}] ${target}`, error);
+
+  const code = error?.code || "";
+  const message = error?.message || "Unknown Firestore error";
+
+  if (code.includes("permission-denied")) {
+    return {
+      ok: false,
+      code,
+      message: "Permission denied. Check Firestore rules or admin access.",
+    };
+  }
+
+  if (code.includes("unavailable")) {
+    return {
+      ok: false,
+      code,
+      message: "Firestore unavailable. Check internet or Firebase status.",
+    };
+  }
+
+  if (code.includes("not-found")) {
+    return {
+      ok: false,
+      code,
+      message: "Requested document not found.",
+    };
+  }
+
+  return {
+    ok: false,
+    code,
+    message,
+  };
 }
 
-export function handleFirestoreError(error, operationType, path) {
-  const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  const errorJson = safeStringify(errInfo);
-  console.error('Firestore Error: ', errorJson);
-  throw new Error(errorJson);
-}
+initFirebase();
+
+export const app = getFirebaseApp();
+export const auth = getFirebaseAuth();
+export const db = getFirebaseDb();
+export const storage = getFirebaseStorage();
+export const analytics = analyticsInstance;
+
+export {
+  GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  collection,
+  query,
+  orderBy,
+  limit,
+  where,
+  onSnapshot,
+  doc,
+  setDoc,
+  updateDoc,
+  getDoc,
+  addDoc,
+  deleteDoc,
+  increment,
+  serverTimestamp,
+};
+
+export default app;
