@@ -1,21 +1,26 @@
 {
   "name": "SwahiliTech Elite Academy",
   "short_name": "STEA",
-  "description": "Teknolojia kwa Kiswahili 🇹🇿",
+  "description": "Jukwaa #1 la teknolojia kwa Kiswahili — Tech tips, courses, deals na zaidi.",
   "start_url": "/",
   "display": "standalone",
+  "background_color": "#040509",
   "theme_color": "#F5A623",
-  "background_color": "#05060a",
-  "lang": "sw",
+  "orientation": "portrait-primary",
   "icons": [
-    { "src": "/stea-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/stea-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/stea-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/stea-icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icons/stea-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/stea-icon.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/stea-icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
   ],
-  "shortcuts": [
-    { "name": "Tech Tips", "url": "/?page=tips" },
-    { "name": "Deals", "url": "/?page=deals" }
-  ]
+  "categories": ["education", "technology"],
+  "lang": "sw"
 }
