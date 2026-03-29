@@ -8,6 +8,7 @@
         "title": { "type": "string" },
         "content": { "type": "string" },
         "category": { "type": "string" },
+        "imageUrl": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "content", "category", "createdAt"]
@@ -19,7 +20,7 @@
       "properties": {
         "title": { "type": "string" },
         "content": { "type": "string" },
-        "image": { "type": "string" },
+        "imageUrl": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "content", "createdAt"]
@@ -33,7 +34,7 @@
         "description": { "type": "string" },
         "price": { "type": "string" },
         "url": { "type": "string" },
-        "image": { "type": "string" },
+        "imageUrl": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "url", "createdAt"]
@@ -48,7 +49,7 @@
         "duration": { "type": "string" },
         "level": { "type": "string" },
         "price": { "type": "string" },
-        "image": { "type": "string" },
+        "imageUrl": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "description", "createdAt"]
@@ -77,6 +78,7 @@
         "price": { "type": "string" },
         "oldPrice": { "type": "string" },
         "icon": { "type": "string" },
+        "imageUrl": { "type": "string" },
         "badge": { "type": "string" },
         "url": { "type": "string" },
         "category": { "type": "string" },
@@ -93,13 +95,203 @@
         "url": { "type": "string" },
         "description": { "type": "string" },
         "icon": { "type": "string" },
+        "imageUrl": { "type": "string" },
         "bg": { "type": "string" },
         "meta": { "type": "string" },
         "tags": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "url", "createdAt"]
-    }
+    },
+    "prompt": {
+      "title": "AI Prompt",
+      "description": "A curated AI prompt for the Prompt Lab",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "prompt": { "type": "string" },
+        "category": { "type": "string" },
+        "icon": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "howToUse": { "type": "string" },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "iconUrl": { "type": "string" },
+              "toolUrl": { "type": "string" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "prompt", "category", "createdAt"]
+    },
+    "site_setting": {
+      "title": "Site Setting",
+      "description": "General settings for a website section",
+      "type": "object",
+      "properties": {
+        "data": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["data"]
+    },
+    "faq": {
+      "title": "FAQ",
+      "description": "A frequently asked question",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" },
+        "answer": { "type": "string" },
+        "category": { "type": "string" },
+        "order": { "type": "integer" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["question", "answer", "order", "isActive"]
+    },
+    "sponsored_ad": {
+      "title": "Sponsored Ad",
+      "description": "A paid advertisement",
+      "type": "object",
+      "properties": {
+        "adTitle": { "type": "string" },
+        "clientName": { "type": "string" },
+        "contactPerson": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "clientWhatsApp": { "type": "string" },
+        "clientEmail": { "type": "string", "format": "email" },
+        "adImage": { "type": "string" },
+        "shortCaption": { "type": "string" },
+        "ctaText": { "type": "string" },
+        "ctaLink": { "type": "string" },
+        "adType": { "type": "string", "enum": ["popup", "inline_banner", "sponsored_card", "floating_cta"] },
+        "placement": { "type": "string" },
+        "targetPages": { "type": "array", "items": { "type": "string" } },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["draft", "active", "paused", "expired"] },
+        "priority": { "type": "integer" },
+        "totalImpressions": { "type": "integer" },
+        "totalClicks": { "type": "integer" },
+        "maxDailyViews": { "type": "integer" },
+        "notes": { "type": "string" }
+      },
+      "required": ["adTitle", "clientName", "adType", "status", "priority"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "A customer order",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "userId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string", "format": "email" },
+        "customerPhone": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "productType": { "type": "string", "enum": ["subscription", "one_time_access", "digital_product", "service"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paymentReference": { "type": "string" },
+        "paymentProofImage": { "type": "string" },
+        "orderStatus": { "type": "string", "enum": ["pending", "awaiting_payment_review", "approved", "rejected", "completed", "cancelled"] },
+        "paymentStatus": { "type": "string", "enum": ["pending", "verified", "failed", "refunded"] },
+        "deliveryStatus": { "type": "string", "enum": ["not_sent", "processing", "sent", "delivered"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" }
+      },
+      "required": ["orderId", "userId", "customerName", "productId", "amount", "orderStatus", "createdAt"]
+    },
+    "payment": {
+      "title": "Payment",
+      "description": "A payment record for review",
+      "type": "object",
+      "properties": {
+        "paymentId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string", "format": "email" },
+        "amountPaid": { "type": "number" },
+        "currency": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paymentReference": { "type": "string" },
+        "screenshotUrl": { "type": "string" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "reviewedBy": { "type": "string" },
+        "reviewStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "reviewNotes": { "type": "string" }
+      },
+      "required": ["paymentId", "orderId", "customerName", "amountPaid", "reviewStatus", "submittedAt"]
+    },
+    "subscription": {
+      "title": "Subscription",
+      "description": "A customer subscription",
+      "type": "object",
+      "properties": {
+        "subscriptionId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "userId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string", "format": "email" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "planName": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "daysLeft": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "expiring_soon", "expired", "cancelled"] },
+        "renewalCount": { "type": "integer" },
+        "reminderSent3Days": { "type": "boolean" },
+        "reminderSent1Day": { "type": "boolean" },
+        "expiredNoticeSent": { "type": "boolean" },
+        "autoRenew": { "type": "boolean" },
+        "lastPaymentDate": { "type": "string", "format": "date-time" },
+        "nextRenewalDate": { "type": "string", "format": "date-time" },
+        "accessActive": { "type": "boolean" },
+        "notes": { "type": "string" }
+      },
+      "required": ["subscriptionId", "orderId", "userId", "status", "startDate", "accessActive"]
+    },
+    "delivery": {
+      "title": "Delivery",
+      "description": "A delivery task for access",
+      "type": "object",
+      "properties": {
+        "deliveryId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "userId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string", "format": "email" },
+        "productName": { "type": "string" },
+        "accessType": { "type": "string", "enum": ["login_credentials", "invite_link", "download_link", "whatsapp_delivery", "manual_activation"] },
+        "accessDetails": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "supplierContact": { "type": "string" },
+        "deliveryStatus": { "type": "string", "enum": ["pending", "processing", "sent", "customer_confirmed"] },
+        "sentAt": { "type": "string", "format": "date-time" },
+        "handledBy": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["deliveryId", "orderId", "userId", "deliveryStatus"]
+    },
+    "message_template": {
+      "title": "Message Template",
+      "description": "Editable message templates for customer communication",
+      "type": "object",
+      "properties": {
+        "templateId": { "type": "string" },
+        "name": { "type": "string" },
+        "content": { "type": "string" }
+      },
+      "required": ["templateId", "name", "content"]
+    },
   },
   "firestore": {
     "tips": { "schema": "tip", "description": "Collection of tech tips" },
@@ -108,6 +300,15 @@
     "courses": { "schema": "course", "description": "Collection of courses" },
     "users": { "schema": "user", "description": "Collection of registered users" },
     "products": { "schema": "product", "description": "Collection of products in Duka" },
-    "websites": { "schema": "website", "description": "Collection of curated websites" }
+    "websites": { "schema": "website", "description": "Collection of curated websites" },
+    "prompts": { "schema": "prompt", "description": "Collection of AI prompts" },
+    "site_settings": { "schema": "site_setting", "description": "Collection for site-wide settings documents" },
+    "faqs": { "schema": "faq", "description": "Collection of FAQ items" },
+    "sponsored_ads": { "schema": "sponsored_ad", "description": "Collection of sponsored ads" },
+    "orders": { "schema": "order", "description": "Collection of customer orders" },
+    "payments": { "schema": "payment", "description": "Collection of customer payments" },
+    "subscriptions": { "schema": "subscription", "description": "Collection of customer subscriptions" },
+    "deliveries": { "schema": "delivery", "description": "Collection of customer deliveries" },
+    "message_templates": { "schema": "message_template", "description": "Collection of message templates" }
   }
 }

@@ -10,87 +10,65 @@ import {
   getDocs, getDoc, setDoc, onSnapshot, query, orderBy, limit,
   serverTimestamp, increment, where,
 } from "firebase/firestore";
+import { getMessaging, getToken } from "firebase/messaging";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import firebaseConfig from "../firebase-applet-config.json";
 
-// ── Firebase Config (swahilitecheliteacademy — single source of truth) ──
-const firebaseConfig = {
-  apiKey: "AIzaSyDMnbqLZBo-FpI1uL6mWf1pfLpKVKlHF9A",
-  authDomain: "swahilitecheliteacademy.firebaseapp.com",
-  projectId: "swahilitecheliteacademy",
-  storageBucket: "swahilitecheliteacademy.firebasestorage.app",
-  messagingSenderId: "869558429488",
-  appId: "1:869558429488:web:b6d6614c1c40cb75ed4af5",
-  measurementId: "G-9CBGRJPLT4",
-};
+const ADMIN_EMAIL = "isayamasika100@gmail.com";
 
-export const ADMIN_EMAIL = "isayamasika100@gmail.com";
-
-// ── Helper: normalize email ──────────────────────────
+// Helper to normalize email input (appends @gmail.com if domain is missing)
 export const normalizeEmail = (email) => {
   if (!email) return "";
   const trimmed = email.trim().toLowerCase();
-  if (!trimmed.includes("@")) return `${trimmed}@gmail.com`;
+  if (!trimmed.includes("@")) {
+    return `${trimmed}@gmail.com`;
+  }
   return trimmed;
 };
 
-// ── Init (safe, runs once) ───────────────────────────
+// ── Init (safe, runs once) ────────────────────────────
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = firebaseConfig.firestoreDatabaseId 
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
+const messaging = getMessaging(app);
 const storage = getStorage(app);
 const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;
 
-// ── Messaging: lazy init to avoid crash on unsupported browsers ──
-let _messaging = null;
-export const getMessagingInstance = async () => {
-  if (_messaging) return _messaging;
-  try {
-    if (!("Notification" in window) || !navigator.serviceWorker) return null;
-    const { getMessaging } = await import("firebase/messaging");
-    _messaging = getMessaging(app);
-    return _messaging;
-  } catch {
-    return null;
-  }
-};
-
-export { auth, db, storage, analytics, GoogleAuthProvider };
-
-// ── Auth exports ─────────────────────────────────────
+export { auth, db, messaging, storage, analytics, ADMIN_EMAIL, GoogleAuthProvider };
 export {
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   signInWithPopup, signOut, onAuthStateChanged, sendPasswordResetEmail,
 };
-
-// ── Firestore exports ────────────────────────────────
 export {
   collection, doc, addDoc, updateDoc, deleteDoc,
   getDocs, getDoc, setDoc, onSnapshot, query, orderBy, limit,
   serverTimestamp, increment, where,
+  getToken, ref, uploadBytes, getDownloadURL,
 };
 
-// ── Storage exports ──────────────────────────────────
-export { ref, uploadBytes, getDownloadURL };
-
-// ── Compat helpers (so existing code doesn't break) ──
+// For backward compatibility with existing code
 export const initFirebase = () => ({ auth, db });
 export const getFirebaseAuth = () => auth;
 export const getFirebaseDb = () => db;
 
 export const OperationType = {
-  CREATE: "create",
-  UPDATE: "update",
-  DELETE: "delete",
-  LIST: "list",
-  GET: "get",
-  WRITE: "write",
+  CREATE: 'create',
+  UPDATE: 'update',
+  DELETE: 'delete',
+  LIST: 'list',
+  GET: 'get',
+  WRITE: 'write',
 };
 
 function safeStringify(obj) {
   const cache = new Set();
   return JSON.stringify(obj, (key, value) => {
-    if (typeof value === "object" && value !== null) {
-      if (cache.has(value)) return;
+    if (typeof value === 'object' && value !== null) {
+      if (cache.has(value)) {
+        return; // Discard circular reference
+      }
       cache.add(value);
     }
     return value;
@@ -103,10 +81,20 @@ export function handleFirestoreError(error, operationType, path) {
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
     },
     operationType,
-    path,
+    path
   };
-  console.error("Firestore Error: ", safeStringify(errInfo));
-  throw new Error(safeStringify(errInfo));
+  const errorJson = safeStringify(errInfo);
+  console.error('Firestore Error: ', errorJson);
+  throw new Error(errorJson);
 }

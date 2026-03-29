@@ -287,27 +287,6 @@ service cloud.firestore {
       allow write: if isAdmin() && isValidMessageTemplate(request.resource.data);
     }
 
-
-    // Push notification tokens (written by browser on permission grant)
-    match /fcm_tokens/{tokenId} {
-      allow read: if isAdmin();
-      allow create: if true; // Allow any browser to save token
-      allow delete: if isAdmin();
-    }
-
-    // Support messages from contact form
-    match /support_messages/{msgId} {
-      allow read: if isAdmin();
-      allow create: if true; // Allow anyone to send support message
-    }
-
-    // Payment proof submissions from users
-    match /payment_submissions/{subId} {
-      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin();
-    }
-
     // Default deny
     match /{path=**} {
       allow read, write: if false;

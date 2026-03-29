@@ -1,39 +1,34 @@
-import { useEffect } from "react";
-import { getMessagingInstance, db, collection, doc, setDoc } from "../firebase";
-
-const VAPID_KEY =
-  "BDlsejpFbn27TWmAFQLFCd72CncssIQbthLbEBe3h5al81IDX9LsOiQ2xt6AFirzUCbEg_eaiK3kE7L4hrnTqsE";
+import { useEffect } from 'react';
+import { getToken } from 'firebase/messaging';
+import { messaging, db, collection, doc, setDoc } from '../firebase';
 
 export const NotificationManager = () => {
   useEffect(() => {
     const requestPermission = async () => {
       try {
-        if (!("Notification" in window)) return;
-        if (Notification.permission === "denied") return;
-
         const permission = await Notification.requestPermission();
-        if (permission !== "granted") return;
-
-        const { getToken } = await import("firebase/messaging");
-        const messaging = await getMessagingInstance();
-        if (!messaging) return;
-
-        const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-        if (token) {
-          await setDoc(doc(collection(db, "fcm_tokens"), token), {
-            token,
-            createdAt: new Date(),
-          });
+        if (permission === 'granted') {
+          // IMPORTANT: Replace 'YOUR_VAPID_KEY' with your actual VAPID key from Firebase Console
+          // Project Settings -> Cloud Messaging -> Web Push Certificates
+          const vapidKey = 'BDlsejpFbn27TWmAFQLFCd72CncssIQbthLbEBe3h5al81IDX9LsOiQ2xt6AFirzUCbEg_eaiK3kE7L4hrnTqsE';
+          if (vapidKey === 'YOUR_VAPID_KEY') {
+            console.warn('VAPID key is not configured. Push notifications will not work.');
+            return;
+          }
+          const token = await getToken(messaging, { vapidKey });
+          if (token) {
+            await setDoc(doc(collection(db, 'fcm_tokens'), token), {
+              token,
+              createdAt: new Date()
+            });
+            console.log('FCM token saved successfully.');
+          }
         }
       } catch (error) {
-        // Silent fail — notifications are non-critical
-        console.warn("Push notification setup failed:", error.message);
+        console.error('Error requesting notification permission:', error);
       }
     };
-
-    // Small delay so it doesn't block initial render
-    const t = setTimeout(requestPermission, 3000);
-    return () => clearTimeout(t);
+    requestPermission();
   }, []);
 
   return null;

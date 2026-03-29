@@ -229,19 +229,12 @@ function TechContentManager({ collectionName }) {
         category: form.category || (collectionName === "tips" ? "tech-tips" : "tech-updates"),
         sectionType: collectionName === "tips" ? "techTips" : "techUpdates",
         views: form.views || 0, 
-        // Always use serverTimestamp for new docs; keep existing for edits
-        createdAt: (editing && form.createdAt) ? form.createdAt : serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: form.createdAt || serverTimestamp() 
       };
 
-      // Ensure no undefined values are sent to Firestore
-      // IMPORTANT: exclude timestamp fields from empty-string conversion
-      const TIMESTAMP_FIELDS = ['createdAt', 'updatedAt', 'publishedAt'];
+      // Ensure no undefined or null values are sent to Firestore
       Object.keys(data).forEach(key => {
-        if (TIMESTAMP_FIELDS.includes(key)) return; // never overwrite timestamps
-        if (data[key] === undefined) data[key] = "";
-        // Only convert null for non-timestamp fields
-        if (data[key] === null) data[key] = "";
+        if (data[key] === undefined || data[key] === null) data[key] = "";
       });
 
       if (data.imageUrl && data.imageUrl.length > 900000) {
@@ -265,8 +258,7 @@ function TechContentManager({ collectionName }) {
         platform: "youtube", embedUrl: "", channel: "", channelImg: "🎙️", duration: "",
         category: collectionName === "tips" ? "tech-tips" : "tech-updates",
         sectionType: collectionName === "tips" ? "techTips" : "techUpdates",
-        views: 0,
-        createdAt: null, updatedAt: null,
+        views: 0
       });
       setEditing(null);
     } catch (e) {
@@ -455,14 +447,9 @@ function DealsManager() {
     try {
       const data = { ...form, createdAt: serverTimestamp() };
 
-      // Ensure no undefined values are sent to Firestore
-      // IMPORTANT: exclude timestamp fields from empty-string conversion
-      const TIMESTAMP_FIELDS = ['createdAt', 'updatedAt', 'publishedAt'];
+      // Ensure no undefined or null values are sent to Firestore
       Object.keys(data).forEach(key => {
-        if (TIMESTAMP_FIELDS.includes(key)) return; // never overwrite timestamps
-        if (data[key] === undefined) data[key] = "";
-        // Only convert null for non-timestamp fields
-        if (data[key] === null) data[key] = "";
+        if (data[key] === undefined || data[key] === null) data[key] = "";
       });
 
       if (data.imageUrl && data.imageUrl.length > 900000) {
@@ -702,14 +689,9 @@ function CoursesManager() {
         createdAt: serverTimestamp() 
       };
 
-      // Ensure no undefined values are sent to Firestore
-      // IMPORTANT: exclude timestamp fields from empty-string conversion
-      const TIMESTAMP_FIELDS = ['createdAt', 'updatedAt', 'publishedAt'];
+      // Ensure no undefined or null values are sent to Firestore
       Object.keys(data).forEach(key => {
-        if (TIMESTAMP_FIELDS.includes(key)) return; // never overwrite timestamps
-        if (data[key] === undefined) data[key] = "";
-        // Only convert null for non-timestamp fields
-        if (data[key] === null) data[key] = "";
+        if (data[key] === undefined || data[key] === null) data[key] = "";
       });
 
       if (data.imageUrl && data.imageUrl.length > 900000) {
@@ -971,14 +953,9 @@ function ProductsManager() {
     try {
       const data = { ...form, createdAt: serverTimestamp() };
 
-      // Ensure no undefined values are sent to Firestore
-      // IMPORTANT: exclude timestamp fields from empty-string conversion
-      const TIMESTAMP_FIELDS = ['createdAt', 'updatedAt', 'publishedAt'];
+      // Ensure no undefined or null values are sent to Firestore
       Object.keys(data).forEach(key => {
-        if (TIMESTAMP_FIELDS.includes(key)) return; // never overwrite timestamps
-        if (data[key] === undefined) data[key] = "";
-        // Only convert null for non-timestamp fields
-        if (data[key] === null) data[key] = "";
+        if (data[key] === undefined || data[key] === null) data[key] = "";
       });
 
       if (data.imageUrl && data.imageUrl.length > 900000) {
@@ -1131,14 +1108,9 @@ function WebsitesManager() {
     try {
       const data = { ...form, tags: form.tags.split(",").map(t => t.trim()).filter(Boolean), createdAt: serverTimestamp() };
 
-      // Ensure no undefined values are sent to Firestore
-      // IMPORTANT: exclude timestamp fields from empty-string conversion
-      const TIMESTAMP_FIELDS = ['createdAt', 'updatedAt', 'publishedAt'];
+      // Ensure no undefined or null values are sent to Firestore
       Object.keys(data).forEach(key => {
-        if (TIMESTAMP_FIELDS.includes(key)) return; // never overwrite timestamps
-        if (data[key] === undefined) data[key] = "";
-        // Only convert null for non-timestamp fields
-        if (data[key] === null) data[key] = "";
+        if (data[key] === undefined || data[key] === null) data[key] = "";
       });
 
       if (data.imageUrl && data.imageUrl.length > 900000) {
@@ -2227,10 +2199,10 @@ export default function AdminPanel({ user, onBack }) {
   ];
 
   return (
-    <div style={{ minHeight:"100vh", display:"grid", gridTemplateColumns:"clamp(200px, 20vw, 240px) 1fr", background:"#0a0b0f", minWidth:0 }}>
+    <div style={{ minHeight:"100vh", display:"grid", gridTemplateColumns:"240px 1fr", background:"#0a0b0f" }}>
 
       {/* Sidebar */}
-      <div style={{ borderRight:"1px solid rgba(255,255,255,.06)", padding:"20px 12px", position:"sticky", top:0, height:"100vh", overflowY:"auto", scrollbarWidth:"none", flexShrink:0 }}>
+      <div style={{ borderRight:"1px solid rgba(255,255,255,.06)", padding:"24px 16px", position:"sticky", top:0, height:"100vh", overflowY:"auto" }}>
         <div style={{ marginBottom:28 }}>
           <div style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontSize:20, fontWeight:800, marginBottom:4 }}>⚡ Admin Panel</div>
           <div style={{ fontSize:12, color:"rgba(255,255,255,.35)" }}>SwahiliTech Elite Academy</div>

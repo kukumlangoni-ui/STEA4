@@ -1,35 +1,26 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig } from 'vite';
+import {defineConfig, loadEnv} from 'vite';
 
-// NOTE: base is set to '/' for Vercel/production deployment.
-// If deploying to GitHub Pages subfolder, change to '/STEA/'
-export default defineConfig({
-  base: '/',
-  plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, '.'),
+export default defineConfig(({mode}) => {
+  const env = loadEnv(mode, '.', '');
+  return {
+    base: '/STEA4/',
+    plugins: [react(), tailwindcss()],
+    define: {
+      'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY),
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
     },
-  },
-  build: {
-    // Increase chunk size warning limit
-    chunkSizeWarningLimit: 1200,
-    rollupOptions: {
-      output: {
-        // Split large vendor chunks for faster loading
-        manualChunks: {
-          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
-          'motion': ['motion/react'],
-          'lucide': ['lucide-react'],
-        },
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, '.'),
       },
     },
-  },
-  server: {
-    port: 3000,
-    host: true,
-    hmr: process.env.DISABLE_HMR !== 'true',
-  },
+    server: {
+      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      hmr: process.env.DISABLE_HMR !== 'true',
+    },
+  };
 });
