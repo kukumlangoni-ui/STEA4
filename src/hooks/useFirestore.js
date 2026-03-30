@@ -1,127 +1,186 @@
-import { useState, useEffect } from "react";
-import { getFirebaseDb, collection, onSnapshot, query, limit, doc, updateDoc, increment, handleFirestoreError, OperationType, orderBy } from "../firebase.js";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { 
+  getFirebaseDb, 
+  collection, 
+  onSnapshot, 
+  query, 
+  limit, 
+  doc, 
+  updateDoc, 
+  addDoc,
+  increment, 
+  orderBy, 
+  serverTimestamp 
+} from "../firebase.js";
 
+// Hook for real-time collection data
 export function useCollection(colName, orderField = "createdAt", limitCount = 50) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  
+  const queryRef = useRef(null);
+  
   useEffect(() => {
     const db = getFirebaseDb();
-    if (!db) return;
-
-    // Timeout to prevent infinite loading state if network is slow
-    const timer = setTimeout(() => {
+    if (!db) {
       setLoading(false);
-    }, 6000);
+      return;
+    }
 
-    let unsubFallback = null;
+    try {
+      queryRef.current = query(
+        collection(db, colName), 
+        orderBy(orderField, "desc"), 
+        limit(limitCount)
+      );
+    } catch (error) {
+      console.error(`Failed to create query for collection '${colName}'.`, error);
+      setLoading(false);
+      return;
+    }
 
-    // Use orderBy to let Firestore handle sorting and limit to reduce reads
-    const q = query(collection(db, colName), orderBy(orderField, "desc"), limit(limitCount));
-    const unsub = onSnapshot(q, (snap) => {
-      clearTimeout(timer);
-      
+    const unsub = onSnapshot(queryRef.current, (snap) => {
       if (snap.empty) {
-        // Fallback: if no documents have the orderField, fetch without orderBy
-        console.log(`No docs with ${orderField} in ${colName}, trying fallback...`);
-        if (!unsubFallback) {
-          const fallbackQ = query(collection(db, colName), limit(limitCount));
-          unsubFallback = onSnapshot(fallbackQ, (fallbackSnap) => {
-            console.log(`Fetched ${fallbackSnap.size} fallback docs from ${colName}`);
-            const fetchedDocs = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setDocs(fetchedDocs);
-            setLoading(false);
-          }, (err) => {
-            console.error(`Error fetching fallback ${colName}:`, err);
-            setLoading(false);
-          });
-        }
-        return;
+        setDocs([]);
+      } else {
+        const fetchedDocs = snap.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data(),
+          createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()
+        }));
+        setDocs(fetchedDocs);
       }
-
-      // If we have documents, and we previously subscribed to fallback, unsubscribe
-      if (unsubFallback) {
-        unsubFallback();
-        unsubFallback = null;
-      }
-
-      console.log(`Fetched ${snap.size} docs from ${colName}`);
-      const fetchedDocs = snap.docs.map(d => {
-        const data = d.data();
-        console.log(`Doc ${d.id}:`, data);
-        return { id: d.id, ...data };
-      });
-      
-      // We still sort in memory to handle the case where a local write has a null serverTimestamp
-      // and we want it to immediately appear at the top.
-      fetchedDocs.sort((a, b) => {
-        const fieldA = a.updatedAt || a[orderField];
-        const fieldB = b.updatedAt || b[orderField];
-        
-        const valA = fieldA?.toDate ? fieldA.toDate() : fieldA;
-        const valB = fieldB?.toDate ? fieldB.toDate() : fieldB;
-        
-        const timeA = valA === null || valA === undefined ? Date.now() + 10000 : (typeof valA === 'number' ? valA : new Date(valA).getTime() || 0);
-        const timeB = valB === null || valB === undefined ? Date.now() + 10000 : (typeof valB === 'number' ? valB : new Date(valB).getTime() || 0);
-        
-        return timeB - timeA;
-      });
-
-      setDocs(fetchedDocs);
       setLoading(false);
     }, (err) => {
-      clearTimeout(timer);
-      console.error(`Error fetching ${colName}:`, err);
-      if (err.message.includes("insufficient permissions")) {
-        handleFirestoreError(err, OperationType.LIST, colName);
-      }
+      console.error(`Error listening to collection '${colName}':`, err);
       setLoading(false);
     });
 
-    return () => {
-      clearTimeout(timer);
-      unsub();
-      if (unsubFallback) unsubFallback();
-    };
+    return () => unsub();
   }, [colName, orderField, limitCount]);
 
   return { docs, loading };
 }
 
+// Hook for real-time single document data
+export function useDocument(colName, docId) {
+  const [docData, setDocData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!docId) {
+      setLoading(false);
+      return;
+    }
+
+    const db = getFirebaseDb();
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+
+    const docRef = doc(db, colName, docId);
+
+    const unsub = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setDocData({ id: docSnap.id, ...docSnap.data() });
+      } else {
+        console.warn(`Document '${docId}' not found in collection '${colName}'.`);
+        setDocData(null);
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error(`Error fetching document '${colName}/${docId}':`, err);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, [colName, docId]);
+
+  return { docData, loading };
+}
+
+// Generic function to update a document
+export const updateDocument = async (colName, docId, data) => {
+  const db = getFirebaseDb();
+  if (!db || !colName || !docId) return;
+
+  try {
+    const docRef = doc(db, colName, docId);
+    await updateDoc(docRef, {
+      ...data,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error(`Error updating document ${colName}/${docId}:`, error);
+    throw error; // Re-throw to be caught in the component
+  }
+};
+
+// Function to add a document
+export const addDocument = async (colName, data) => {
+  const db = getFirebaseDb();
+  if (!db) return null;
+  
+  const docData = {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    const docRef = await addDoc(collection(db, colName), docData);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding document: ", error);
+    return null;
+  }
+};
+
+
 export async function incrementViews(colName, docId) {
   const db = getFirebaseDb();
-  if (!db) return;
+  if (!db || !colName || !docId) return;
   try {
     const ref = doc(db, colName, docId);
     await updateDoc(ref, { views: increment(1) });
   } catch (e) {
-    console.warn("Error incrementing views:", e.message);
-    if (e.message.includes("insufficient permissions")) {
-      handleFirestoreError(e, OperationType.UPDATE, `${colName}/${docId}`);
-    }
+    console.warn(`Could not increment views for ${colName}/${docId}:`, e.message);
   }
 }
 
 export function timeAgo(timestamp) {
-  if (!timestamp) return "";
+  if (!timestamp) return "just now";
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
   const seconds = Math.floor((new Date() - date) / 1000);
+
+  if (isNaN(seconds) || seconds < 0) {
+    return "just now";
+  }
+
   let interval = seconds / 31536000;
-  if (interval > 1) return Math.floor(interval) + " years ago";
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " year ago" : " years ago");
+  
   interval = seconds / 2592000;
-  if (interval > 1) return Math.floor(interval) + " months ago";
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " month ago" : " months ago");
+  
   interval = seconds / 86400;
-  if (interval > 1) return Math.floor(interval) + " days ago";
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " day ago" : " days ago");
+  
   interval = seconds / 3600;
-  if (interval > 1) return Math.floor(interval) + " hours ago";
+  if (interval > 1) return Math.floor(interval)_owner + (Math.floor(interval) === 1 ? " hour ago" : " hours ago");
+  
   interval = seconds / 60;
-  if (interval > 1) return Math.floor(interval) + " minutes ago";
+  if (interval > 1) return Math.floor(interval) + (Math.floor(interval) === 1 ? " minute ago" : " minutes ago");
+
+  if (seconds < 10) return "just now";
+
   return Math.floor(seconds) + " seconds ago";
 }
 
 export function fmtViews(v) {
-  if (!v) return "0";
-  if (v >= 1000000) return (v / 1000000).toFixed(1) + "M";
-  if (v >= 1000) return (v / 1000).toFixed(1) + "K";
+  if (v === null || v === undefined) return "0";
+  if (v >= 1000000) return (v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1) + "M";
+  if (v >= 1000) return (v / 1000).toFixed(v % 1000 === 0 ? 0 : 1) + "K";
   return v.toString();
 }

@@ -1,16 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import { storage, ref, uploadBytes, getDownloadURL, db, doc, updateDoc } from "../firebase.js";
-import { Camera, X, Check, Upload, Trash2 } from "lucide-react";
+import { storage, ref, uploadBytes, getDownloadURL } from "../firebase.js";
+import { updateDocument } from "../hooks/useFirestore"; // Import the new function
+import { Camera, X } from "lucide-react";
 import Cropper from "react-easy-crop";
 import ProfileImage from "./ProfileImage";
 
-// ── Portal Component ──────────────────────────────────
 const Portal = ({ children }) => {
   return createPortal(children, document.body);
 };
 
-// ── Helper: getCroppedImg ──────────────────────────────
 const createImage = (url) =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -81,22 +80,24 @@ export default function ProfilePictureUpload({ userId, currentPhotoURL, onUpdate
       await uploadBytes(storageRef, croppedBlob);
       const downloadURL = await getDownloadURL(storageRef);
 
-      const userDocRef = doc(db, "users", userId);
-      await updateDoc(userDocRef, { photoURL: downloadURL });
+      // Use the centralized updateDocument function
+      await updateDocument("users", userId, { photoURL: downloadURL });
 
-      onUpdate(downloadURL);
+      if (onUpdate) {
+        onUpdate(downloadURL);
+      }
     } catch (error) {
       console.error("Error uploading profile picture:", error);
-      alert("Imeshindwa kupakia picha. Jaribu tena.");
+      alert("Failed to upload profile picture. Please try again.");
     } finally {
-      setLoading(false);
+      setLoading(falsse);
       setImage(null);
     }
   };
 
   return (
     <div className="flex flex-col items-center gap-6">
-      <div className="relative group">
+       <div className="relative group">
         {/* Outer Glow Ring */}
         <div className="absolute -inset-2 bg-gradient-to-br from-[#F5A623] to-[#FFD17C] rounded-full opacity-20 blur-xl group-hover:opacity-40 transition-opacity duration-500" />
         
@@ -133,16 +134,15 @@ export default function ProfilePictureUpload({ userId, currentPhotoURL, onUpdate
       </div>
 
       <div className="flex flex-col items-center gap-2">
-        <p className="text-[10px] text-white/30 uppercase tracking-[0.25em] font-black">Badili Picha ya Profile</p>
+        <p className="text-[10px] text-white/30 uppercase tracking-[0.25em] font-black">Change Profile Picture</p>
       </div>
 
-      {/* Crop Modal */}
       {showCrop && (
         <Portal>
           <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-[#040509]/95 backdrop-blur-2xl">
             <div className="relative w-full max-w-md bg-[#0e101a] rounded-[40px] border border-white/10 shadow-2xl overflow-hidden">
               <div className="p-7 border-b border-white/5 flex items-center justify-between">
-                <h3 className="text-xl font-black text-white tracking-tight">Kata Picha</h3>
+                <h3 className="text-xl font-black text-white tracking-tight">Crop Image</h3>
                 <button 
                   onClick={() => setShowCrop(false)}
                   className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors"
@@ -182,13 +182,13 @@ export default function ProfilePictureUpload({ userId, currentPhotoURL, onUpdate
                     onClick={() => setShowCrop(false)}
                     className="flex-1 h-14 rounded-2xl bg-white/5 text-white font-bold hover:bg-white/10 transition-colors"
                   >
-                    Ghairi
+                    Cancel
                   </button>
                   <button
                     onClick={handleCropSave}
                     className="flex-[2] h-14 rounded-2xl bg-[#F5A623] text-[#111] font-black hover:bg-[#FFD17C] transition-all active:scale-95"
                   >
-                    Kamilisha
+                    Save
                   </button>
                 </div>
               </div>
